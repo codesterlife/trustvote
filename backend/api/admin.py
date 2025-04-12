@@ -1,41 +1,55 @@
 from django.contrib import admin
-from .models import Voter, Election, Position, Party, Candidate, Vote
+from django.contrib.auth.admin import UserAdmin
+from .models import User, Election, Position, Party, Candidate, Vote
 
-@admin.register(Voter)
-class VoterAdmin(admin.ModelAdmin):
-    list_display = ('id', 'student_id', 'get_username', 'wallet_address', 'is_verified', 'is_whitelisted')
-    list_filter = ('is_verified', 'is_whitelisted')
-    search_fields = ('student_id', 'user__username', 'wallet_address')
-    
-    def get_username(self, obj):
-        return obj.user.username
-    get_username.short_description = 'Username'
+class CustomUserAdmin(UserAdmin):
+    list_display = ('username', 'email', 'first_name', 'last_name', 'student_id', 'is_admin', 'is_whitelisted')
+    list_filter = ('is_admin', 'is_whitelisted')
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'email', 'student_id')}),
+        ('Blockchain', {'fields': ('wallet_address', 'is_whitelisted')}),
+        ('Permissions', {'fields': ('is_active', 'is_admin', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+    search_fields = ('username', 'email', 'first_name', 'last_name', 'student_id')
 
-@admin.register(Election)
+class PositionInline(admin.TabularInline):
+    model = Position
+    extra = 1
+
+class CandidateInline(admin.TabularInline):
+    model = Candidate
+    extra = 1
+
 class ElectionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'start_time', 'end_time', 'status', 'is_active')
+    list_display = ('title', 'status', 'start_time', 'end_time', 'contract_address')
     list_filter = ('status',)
     search_fields = ('title', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [PositionInline]
 
-@admin.register(Position)
 class PositionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'election')
+    list_display = ('title', 'election', 'position_id')
     list_filter = ('election',)
-    search_fields = ('title', 'description')
+    search_fields = ('title',)
+    inlines = [CandidateInline]
 
-@admin.register(Party)
-class PartyAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name')
-    search_fields = ('name', 'description')
-
-@admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'position', 'party')
-    list_filter = ('position__election', 'position', 'party')
-    search_fields = ('name', 'bio', 'manifesto')
+    list_display = ('name', 'election', 'position', 'party', 'candidate_id')
+    list_filter = ('election', 'position', 'party')
+    search_fields = ('name', 'bio')
 
-@admin.register(Vote)
 class VoteAdmin(admin.ModelAdmin):
-    list_display = ('id', 'voter', 'election', 'position', 'candidate', 'timestamp')
+    list_display = ('election', 'position', 'candidate', 'wallet', 'timestamp')
     list_filter = ('election', 'position')
-    search_fields = ('voter__student_id', 'candidate__name')
+    search_fields = ('wallet', 'transaction_hash')
+    readonly_fields = ('timestamp',)
+
+# Register the models
+admin.site.register(User, CustomUserAdmin)
+admin.site.register(Election, ElectionAdmin)
+admin.site.register(Position, PositionAdmin)
+admin.site.register(Party)
+admin.site.register(Candidate, CandidateAdmin)
+admin.site.register(Vote, VoteAdmin)

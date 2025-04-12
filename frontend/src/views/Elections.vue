@@ -1,167 +1,153 @@
 <template>
   <div class="elections-page">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1>Available Elections</h1>
-      <div class="d-flex gap-2">
-        <div class="btn-group">
-          <button 
-            class="btn" 
-            :class="{'btn-primary': filter === 'all', 'btn-outline-primary': filter !== 'all'}"
-            @click="filter = 'all'">
-            All
-          </button>
-          <button 
-            class="btn" 
-            :class="{'btn-primary': filter === 'active', 'btn-outline-primary': filter !== 'active'}"
-            @click="filter = 'active'">
-            Active
-          </button>
-          <button 
-            class="btn" 
-            :class="{'btn-primary': filter === 'upcoming', 'btn-outline-primary': filter !== 'upcoming'}"
-            @click="filter = 'upcoming'">
-            Upcoming
-          </button>
-          <button 
-            class="btn" 
-            :class="{'btn-primary': filter === 'past', 'btn-outline-primary': filter !== 'past'}"
-            @click="filter = 'past'">
-            Past
-          </button>
+      <h1>Elections</h1>
+      
+      <div v-if="!isConnected" class="alert alert-warning d-flex align-items-center">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <div>
+          <strong>Please connect your MetaMask wallet</strong> to participate in voting.
         </div>
       </div>
     </div>
     
-    <div v-if="isLoading" class="text-center my-5">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p class="mt-3">Loading elections...</p>
+    <div v-if="!isConnected" class="mb-5">
+      <ConnectWallet />
     </div>
     
-    <div v-else-if="filteredElections.length === 0" class="text-center my-5">
-      <div class="empty-state">
-        <i class="fas fa-ballot fa-4x text-muted mb-3"></i>
-        <h3>No Elections Found</h3>
-        <p class="text-muted">
-          {{ getEmptyMessage() }}
-        </p>
+    <!-- Active Elections Section -->
+    <section class="mb-5">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Active Elections</h2>
+        <div class="input-group w-auto">
+          <input 
+            type="text" 
+            class="form-control" 
+            placeholder="Search elections..." 
+            v-model="searchTerm"
+          >
+          <button class="btn btn-outline-secondary">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
       </div>
-    </div>
+      
+      <div v-if="isLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading elections...</p>
+      </div>
+      
+      <div v-else-if="filteredActiveElections.length === 0" class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        No active elections found.
+      </div>
+      
+      <div v-else class="row">
+        <div v-for="election in filteredActiveElections" :key="election.electionId" class="col-md-6 col-lg-4">
+          <ElectionCard :election="election" />
+        </div>
+      </div>
+    </section>
     
-    <div v-else class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-      <div v-for="election in filteredElections" :key="election.electionId" class="col">
-        <ElectionCard :election="election" @vote="goToVotingBooth" />
+    <!-- Past Elections Section -->
+    <section>
+      <h2 class="mb-3">Past Elections</h2>
+      
+      <div v-if="isLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading past elections...</p>
       </div>
-    </div>
+      
+      <div v-else-if="filteredPastElections.length === 0" class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        No past elections found.
+      </div>
+      
+      <div v-else class="row">
+        <div v-for="election in filteredPastElections" :key="election.electionId" class="col-md-6 col-lg-4">
+          <ElectionCard :election="election" />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
+import { mapActions, mapGetters } from 'vuex'
 import ElectionCard from '@/components/ElectionCard.vue'
-import api from '@/services/api'
+import ConnectWallet from '@/components/ConnectWallet.vue'
 
 export default {
   name: 'Elections',
   components: {
-    ElectionCard
+    ElectionCard,
+    ConnectWallet
   },
   data() {
     return {
-      elections: [],
-      isLoading: true,
-      filter: 'active'
+      searchTerm: '',
+      isLoading: false
     }
   },
   computed: {
-    filteredElections() {
-      if (this.filter === 'all') {
-        return this.elections
-      }
+    ...mapGetters(['allElections', 'activeElections', 'pastElections', 'isConnected']),
+    filteredActiveElections() {
+      if (!this.searchTerm) return this.activeElections
       
-      if (this.filter === 'active') {
-        return this.elections.filter(e => e.status === 'Voting')
-      }
+      const searchLower = this.searchTerm.toLowerCase()
+      return this.activeElections.filter(election => 
+        election.title.toLowerCase().includes(searchLower) || 
+        election.description.toLowerCase().includes(searchLower)
+      )
+    },
+    filteredPastElections() {
+      if (!this.searchTerm) return this.pastElections
       
-      if (this.filter === 'upcoming') {
-        return this.elections.filter(e => e.status === 'Init')
-      }
-      
-      if (this.filter === 'past') {
-        return this.elections.filter(e => e.status === 'Closed')
-      }
-      
-      return this.elections
+      const searchLower = this.searchTerm.toLowerCase()
+      return this.pastElections.filter(election => 
+        election.title.toLowerCase().includes(searchLower) || 
+        election.description.toLowerCase().includes(searchLower)
+      )
     }
   },
   methods: {
-    async fetchElections() {
-      try {
-        this.isLoading = true
-        const response = await api.getElections()
-        this.elections = response.data
-      } catch (error) {
-        console.error('Error fetching elections:', error)
-        // Handle error - show notification
-      } finally {
-        this.isLoading = false
-      }
-    },
-    goToVotingBooth(election) {
-      // Check if the election has positions first
-      if (election.positions && election.positions.length > 0) {
-        // If only one position, go directly to voting booth
-        if (election.positions.length === 1) {
-          this.$router.push({
-            name: 'voting-booth',
-            params: {
-              electionId: election.electionId,
-              positionId: election.positions[0].positionId
-            }
-          })
-        } else {
-          // If multiple positions, go to election details page
-          this.$router.push({
-            name: 'election-detail',
-            params: { id: election.electionId }
-          })
-        }
-      } else {
-        // Fallback to election details
-        this.$router.push({
-          name: 'election-detail',
-          params: { id: election.electionId }
-        })
-      }
-    },
-    getEmptyMessage() {
-      if (this.filter === 'active') {
-        return 'There are no active elections at the moment. Check back later or view upcoming elections.'
-      } else if (this.filter === 'upcoming') {
-        return 'There are no upcoming elections scheduled. Check the active or past elections.'
-      } else if (this.filter === 'past') {
-        return 'There are no past elections to display.'
-      } else {
-        return 'No elections are available at this time.'
-      }
-    }
+    ...mapActions(['fetchElections'])
   },
-  mounted() {
-    this.fetchElections()
+  async created() {
+    this.isLoading = true
+    try {
+      await this.fetchElections()
+    } catch (error) {
+      console.error('Error fetching elections:', error)
+    } finally {
+      this.isLoading = false
+    }
   }
 }
 </script>
 
 <style scoped>
 .elections-page {
-  padding-bottom: 40px;
+  margin-bottom: 40px;
 }
 
-.empty-state {
-  padding: 40px 0;
+h2 {
+  color: #333;
+  position: relative;
+  padding-bottom: 10px;
 }
 
-.empty-state i {
-  opacity: 0.5;
+h2:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background-color: #6c63ff;
 }
 </style>

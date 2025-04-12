@@ -1,3 +1,7 @@
+"""
+Django settings for trustvote project.
+"""
+
 import os
 from pathlib import Path
 
@@ -5,12 +9,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-default-key-for-development')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-d2kk73p6r3#4y$uk#0@ykd8u6)kl#n=&3q^$c$ixty#xl^3g&w')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '0.0.0.0', '127.0.0.1', '*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -20,15 +24,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Third party apps
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
-    'api',
+    
+    # Local apps
+    'api.apps.ApiConfig',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -92,21 +101,29 @@ STATIC_URL = 'static/'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Custom user model
+AUTH_USER_MODEL = 'api.User'
+
 # REST Framework settings
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
     ],
 }
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # In development, allow all origins
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Frontend development server
+    "http://localhost:5000",  # Backend server
+    "https://*.replit.dev",   # Replit domains
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # Blockchain settings
-FACTORY_CONTRACT_ADDRESS = os.getenv('FACTORY_CONTRACT_ADDRESS', '')
-WEB3_PROVIDER_URL = os.getenv('WEB3_PROVIDER_URL', 'http://localhost:8545')
+BLOCKCHAIN_PROVIDER_URL = os.getenv('BLOCKCHAIN_PROVIDER_URL', 'http://localhost:7545')  # Default to Ganache
+ELECTION_FACTORY_ADDRESS = os.getenv('ELECTION_FACTORY_ADDRESS', '')

@@ -1,358 +1,461 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
-import axios from 'axios';
-import web3Service from '../services/web3';
+import { createStore } from 'vuex'
+import api from '@/services/api'
+import web3Service from '@/services/web3'
 
-Vue.use(Vuex);
-
-export default new Vuex.Store({
+export default createStore({
   state: {
     user: null,
-    token: localStorage.getItem('token') || null,
     isAdmin: false,
-    voter: null,
+    isLoggedIn: false,
+    wallet: null,
+    web3: null,
+    contracts: {
+      electionFactory: null,
+      elections: {}
+    },
     elections: [],
     currentElection: null,
-    positions: [],
     candidates: [],
-    parties: [],
-    web3Available: false,
-    web3Account: null,
-    loadingStatus: false,
-    notificationMessage: null,
-    notificationType: 'info' // success, info, warning, danger
+    voters: [],
+    loading: false,
+    error: null,
+    networkId: null
   },
   getters: {
-    isAuthenticated(state) {
-      return !!state.token;
-    },
-    isAdmin(state) {
-      return state.isAdmin;
-    },
-    getUser(state) {
-      return state.user;
-    },
-    getVoter(state) {
-      return state.voter;
-    },
-    getElections(state) {
-      return state.elections;
-    },
-    getCurrentElection(state) {
-      return state.currentElection;
-    },
-    getPositions(state) {
-      return state.positions;
-    },
-    getCandidates(state) {
-      return state.candidates;
-    },
-    getParties(state) {
-      return state.parties;
-    },
-    isWeb3Available(state) {
-      return state.web3Available;
-    },
-    getWeb3Account(state) {
-      return state.web3Account;
-    },
-    isLoading(state) {
-      return state.loadingStatus;
-    },
-    getNotification(state) {
-      return {
-        message: state.notificationMessage,
-        type: state.notificationType
-      };
-    }
+    isLoggedIn: state => !!state.user,
+    isAdmin: state => state.isAdmin,
+    currentUser: state => state.user,
+    walletAddress: state => state.wallet,
+    hasMetaMask: state => !!window.ethereum,
+    allElections: state => state.elections,
+    activeElections: state => state.elections.filter(e => 
+      e.status === 'Voting' && new Date(e.endTime) > new Date()),
+    pastElections: state => state.elections.filter(e => 
+      e.status === 'Closed' || new Date(e.endTime) < new Date()),
+    candidates: state => state.candidates,
+    currentElection: state => state.currentElection,
+    isConnected: state => !!state.web3 && !!state.wallet,
+    networkId: state => state.networkId
   },
   mutations: {
-    setUser(state, user) {
-      state.user = user;
-      state.isAdmin = user ? user.is_staff : false;
+    SET_USER(state, user) {
+      state.user = user
+      state.isLoggedIn = !!user
+      state.isAdmin = user ? user.is_admin : false
     },
-    setToken(state, token) {
-      state.token = token;
-      if (token) {
-        localStorage.setItem('token', token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    SET_WALLET(state, address) {
+      state.wallet = address
+    },
+    SET_WEB3(state, web3) {
+      state.web3 = web3
+    },
+    SET_CONTRACT(state, { name, contract }) {
+      if (name === 'electionFactory') {
+        state.contracts.electionFactory = contract
       } else {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
+        state.contracts.elections[name] = contract
       }
     },
-    setVoter(state, voter) {
-      state.voter = voter;
+    SET_NETWORK_ID(state, id) {
+      state.networkId = id
     },
-    setElections(state, elections) {
-      state.elections = elections;
+    SET_ELECTIONS(state, elections) {
+      state.elections = elections
     },
-    setCurrentElection(state, election) {
-      state.currentElection = election;
+    SET_CURRENT_ELECTION(state, election) {
+      state.currentElection = election
     },
-    setPositions(state, positions) {
-      state.positions = positions;
+    SET_CANDIDATES(state, candidates) {
+      state.candidates = candidates
     },
-    setCandidates(state, candidates) {
-      state.candidates = candidates;
+    SET_VOTERS(state, voters) {
+      state.voters = voters
     },
-    setParties(state, parties) {
-      state.parties = parties;
+    SET_LOADING(state, status) {
+      state.loading = status
     },
-    setWeb3Status(state, status) {
-      state.web3Available = status;
+    SET_ERROR(state, error) {
+      state.error = error
     },
-    setWeb3Account(state, account) {
-      state.web3Account = account;
-    },
-    setLoadingStatus(state, status) {
-      state.loadingStatus = status;
-    },
-    setNotification(state, { message, type }) {
-      state.notificationMessage = message;
-      state.notificationType = type || 'info';
-    },
-    clearNotification(state) {
-      state.notificationMessage = null;
+    CLEAR_ERROR(state) {
+      state.error = null
     }
   },
   actions: {
-    async login({ commit, dispatch }, credentials) {
-      try {
-        commit('setLoadingStatus', true);
-        const response = await axios.post('auth/login/', credentials);
-        commit('setToken', response.data.token);
-        await dispatch('fetchUserData');
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Successfully logged in!', 
-          type: 'success' 
-        });
-        return true;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: error.response ? error.response.data.message : 'Login failed', 
-          type: 'danger' 
-        });
-        return false;
-      }
-    },
-    logout({ commit }) {
-      commit('setToken', null);
-      commit('setUser', null);
-      commit('setVoter', null);
-      commit('setWeb3Account', null);
-      commit('setNotification', { 
-        message: 'You have been logged out', 
-        type: 'info' 
-      });
-    },
+    // Auth actions
     async register({ commit }, userData) {
       try {
-        commit('setLoadingStatus', true);
-        await axios.post('register/', userData);
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Registration successful! Please login.', 
-          type: 'success' 
-        });
-        return true;
+        commit('SET_LOADING', true)
+        const response = await api.register(userData)
+        commit('SET_LOADING', false)
+        return response.data
       } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: error.response ? error.response.data.message : 'Registration failed', 
-          type: 'danger' 
-        });
-        return false;
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Registration failed')
+        throw error
       }
     },
-    async fetchUserData({ commit }) {
+    async login({ commit }, credentials) {
       try {
-        commit('setLoadingStatus', true);
-        const userResponse = await axios.get('auth/user/');
-        commit('setUser', userResponse.data);
+        commit('SET_LOADING', true)
+        const response = await api.login(credentials)
+        const user = response.data
+        commit('SET_USER', user)
+        commit('SET_LOADING', false)
+        return user
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Login failed')
+        throw error
+      }
+    },
+    async connectWallet({ commit, dispatch }) {
+      try {
+        commit('SET_LOADING', true)
+        const { web3, address, networkId } = await web3Service.connectWallet()
+        commit('SET_WEB3', web3)
+        commit('SET_WALLET', address)
+        commit('SET_NETWORK_ID', networkId)
         
-        // Try to get voter information
+        // After connecting to wallet, initialize contracts
+        await dispatch('initContracts')
+        
+        commit('SET_LOADING', false)
+        return address
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.message || 'Failed to connect wallet')
+        throw error
+      }
+    },
+    async initWeb3({ commit, dispatch }) {
+      if (window.ethereum) {
         try {
-          const voterResponse = await axios.get('voter-status/');
-          if (voterResponse.data.is_registered) {
-            commit('setVoter', voterResponse.data);
+          const { web3, address, networkId } = await web3Service.initWeb3()
+          if (web3 && address) {
+            commit('SET_WEB3', web3)
+            commit('SET_WALLET', address)
+            commit('SET_NETWORK_ID', networkId)
+            await dispatch('initContracts')
           }
         } catch (error) {
-          console.error('Error fetching voter data:', error);
+          console.error('Web3 initialization error:', error)
         }
-        
-        commit('setLoadingStatus', false);
-        return true;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setToken', null);
-        commit('setUser', null);
-        return false;
       }
     },
+    async initContracts({ commit, state }) {
+      if (!state.web3) return
+      
+      try {
+        // Initialize ElectionFactory contract
+        const electionFactory = await web3Service.getElectionFactoryContract(state.web3)
+        commit('SET_CONTRACT', { name: 'electionFactory', contract: electionFactory })
+      } catch (error) {
+        console.error('Contract initialization error:', error)
+        commit('SET_ERROR', 'Failed to initialize blockchain contracts')
+      }
+    },
+    async checkAuthState({ commit }) {
+      try {
+        const token = localStorage.getItem('token')
+        if (token) {
+          const response = await api.getCurrentUser()
+          commit('SET_USER', response.data)
+        }
+      } catch (error) {
+        localStorage.removeItem('token')
+        commit('SET_USER', null)
+      }
+    },
+    async logout({ commit }) {
+      localStorage.removeItem('token')
+      commit('SET_USER', null)
+      commit('SET_WALLET', null)
+    },
+    
+    // Election actions
     async fetchElections({ commit }) {
       try {
-        commit('setLoadingStatus', true);
-        const response = await axios.get('elections/');
-        commit('setElections', response.data);
-        commit('setLoadingStatus', false);
-        return true;
+        commit('SET_LOADING', true)
+        const response = await api.getElections()
+        commit('SET_ELECTIONS', response.data)
+        commit('SET_LOADING', false)
       } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Failed to fetch elections', 
-          type: 'danger' 
-        });
-        return false;
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to fetch elections')
       }
     },
-    async fetchElection({ commit }, electionId) {
+    async fetchElection({ commit }, id) {
       try {
-        commit('setLoadingStatus', true);
-        const response = await axios.get(`elections/${electionId}/`);
-        commit('setCurrentElection', response.data);
-        commit('setLoadingStatus', false);
-        return response.data;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Failed to fetch election details', 
-          type: 'danger' 
-        });
-        return null;
-      }
-    },
-    async fetchPositions({ commit }, electionId) {
-      try {
-        commit('setLoadingStatus', true);
-        const response = await axios.get(`positions/?election=${electionId}`);
-        commit('setPositions', response.data);
-        commit('setLoadingStatus', false);
-        return true;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Failed to fetch positions', 
-          type: 'danger' 
-        });
-        return false;
-      }
-    },
-    async fetchCandidates({ commit }, { electionId, positionId }) {
-      try {
-        commit('setLoadingStatus', true);
-        let url = 'candidates/';
-        if (positionId) {
-          url += `?position=${positionId}`;
-        } else if (electionId) {
-          url += `?election=${electionId}`;
-        }
-        const response = await axios.get(url);
-        commit('setCandidates', response.data);
-        commit('setLoadingStatus', false);
-        return true;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Failed to fetch candidates', 
-          type: 'danger' 
-        });
-        return false;
-      }
-    },
-    async fetchParties({ commit }) {
-      try {
-        commit('setLoadingStatus', true);
-        const response = await axios.get('parties/');
-        commit('setParties', response.data);
-        commit('setLoadingStatus', false);
-        return true;
-      } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Failed to fetch parties', 
-          type: 'danger' 
-        });
-        return false;
-      }
-    },
-    async connectWallet({ commit, state }) {
-      try {
-        commit('setLoadingStatus', true);
-        if (!state.web3Available) {
-          throw new Error('MetaMask not available');
-        }
+        commit('SET_LOADING', true)
+        const response = await api.getElection(id)
+        commit('SET_CURRENT_ELECTION', response.data)
         
-        const accounts = await web3Service.getAccounts();
-        if (accounts.length === 0) {
-          throw new Error('No accounts found');
-        }
+        // Also fetch candidates for this election
+        const candidatesResponse = await api.getCandidatesByElection(id)
+        commit('SET_CANDIDATES', candidatesResponse.data)
         
-        const account = accounts[0];
-        commit('setWeb3Account', account);
+        commit('SET_LOADING', false)
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to fetch election details')
+      }
+    },
+    async createElection({ commit, state, dispatch }, electionData) {
+      try {
+        commit('SET_LOADING', true)
         
-        // Update voter record with wallet address
-        if (state.user) {
-          await axios.post('connect-wallet/', {
-            wallet_address: account
-          });
+        // First, deploy the smart contract for this election
+        const { contract, address } = await web3Service.deployElectionContract(
+          state.web3,
+          state.contracts.electionFactory,
+          electionData,
+          state.wallet
+        )
+        
+        // Store the contract address in the election data
+        electionData.contract_address = address
+        
+        // Then, save the election in the backend
+        const response = await api.createElection(electionData)
+        
+        // Register the new contract in the store
+        commit('SET_CONTRACT', { name: address, contract })
+        
+        // Refresh the elections list
+        await dispatch('fetchElections')
+        
+        commit('SET_LOADING', false)
+        return response.data
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || error.message || 'Failed to create election')
+        throw error
+      }
+    },
+    async updateElection({ commit, dispatch }, { id, data }) {
+      try {
+        commit('SET_LOADING', true)
+        const response = await api.updateElection(id, data)
+        
+        // Refresh the elections list
+        await dispatch('fetchElections')
+        
+        commit('SET_LOADING', false)
+        return response.data
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to update election')
+        throw error
+      }
+    },
+    
+    // Candidate actions
+    async fetchCandidates({ commit }) {
+      try {
+        commit('SET_LOADING', true)
+        const response = await api.getCandidates()
+        commit('SET_CANDIDATES', response.data)
+        commit('SET_LOADING', false)
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to fetch candidates')
+      }
+    },
+    async createCandidate({ commit, dispatch, state }, candidateData) {
+      try {
+        commit('SET_LOADING', true)
+        
+        // Add candidate to the election contract
+        if (state.currentElection && state.currentElection.contract_address) {
+          const electionContract = state.contracts.elections[state.currentElection.contract_address]
+          if (electionContract) {
+            await web3Service.addCandidateToContract(
+              electionContract,
+              candidateData.candidateId,
+              candidateData.positionId,
+              state.wallet
+            )
+          }
         }
         
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Wallet connected successfully!', 
-          type: 'success' 
-        });
-        return true;
+        // Save candidate in the backend
+        const response = await api.createCandidate(candidateData)
+        
+        // Refresh the candidates list
+        await dispatch('fetchCandidates')
+        
+        commit('SET_LOADING', false)
+        return response.data
       } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: error.message || 'Failed to connect wallet', 
-          type: 'danger' 
-        });
-        return false;
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || error.message || 'Failed to create candidate')
+        throw error
       }
     },
-    async castVote({ commit, state }, { electionId, positionId, candidateId, electionContract }) {
+    
+    // Voter actions
+    async fetchVoters({ commit }) {
       try {
-        commit('setLoadingStatus', true);
+        commit('SET_LOADING', true)
+        const response = await api.getVoters()
+        commit('SET_VOTERS', response.data)
+        commit('SET_LOADING', false)
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to fetch voters')
+      }
+    },
+    async whitelistVoter({ commit, state }, { electionId, voterAddress }) {
+      try {
+        commit('SET_LOADING', true)
         
-        if (!state.web3Available || !state.web3Account) {
-          throw new Error('Wallet not connected');
+        // First find the election
+        const election = state.elections.find(e => e.electionId === electionId)
+        if (election && election.contract_address) {
+          const electionContract = state.contracts.elections[election.contract_address]
+          
+          if (electionContract) {
+            // Whitelist the voter in the contract
+            await web3Service.whitelistVoter(
+              electionContract,
+              voterAddress,
+              state.wallet
+            )
+            
+            // Also update in backend
+            await api.whitelistVoter(electionId, voterAddress)
+          }
         }
         
-        // Cast vote on blockchain
-        const txHash = await web3Service.castVote(
+        commit('SET_LOADING', false)
+        return true
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.message || 'Failed to whitelist voter')
+        throw error
+      }
+    },
+    
+    // Voting actions
+    async castVote({ commit, state }, { electionId, positionId, candidateId }) {
+      try {
+        commit('SET_LOADING', true)
+        
+        // Find the election
+        const election = state.elections.find(e => e.electionId === electionId)
+        if (!election || !election.contract_address) {
+          throw new Error('Election not found or invalid')
+        }
+        
+        // Get the election contract
+        let electionContract = state.contracts.elections[election.contract_address]
+        if (!electionContract) {
+          // If not already loaded, load it now
+          electionContract = await web3Service.getElectionContract(
+            state.web3,
+            election.contract_address
+          )
+          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
+        }
+        
+        // Cast the vote via the smart contract
+        const tx = await web3Service.castVote(
           electionContract,
-          state.web3Account,
           positionId,
-          candidateId
-        );
+          candidateId,
+          state.wallet
+        )
         
-        // Record vote in backend
-        await axios.post('votes/', {
-          election: electionId,
-          position: positionId,
-          candidate: candidateId,
-          transaction_hash: txHash
-        });
+        // Record the vote in the backend as well
+        await api.recordVote({
+          electionId,
+          positionId,
+          candidateId,
+          wallet: state.wallet,
+          transactionHash: tx.transactionHash
+        })
         
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: 'Vote cast successfully!', 
-          type: 'success' 
-        });
-        return txHash;
+        commit('SET_LOADING', false)
+        return tx
       } catch (error) {
-        commit('setLoadingStatus', false);
-        commit('setNotification', { 
-          message: error.message || 'Failed to cast vote', 
-          type: 'danger' 
-        });
-        return null;
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.message || 'Failed to cast vote')
+        throw error
+      }
+    },
+    
+    // Results actions
+    async fetchResults({ commit, state }, electionId) {
+      try {
+        commit('SET_LOADING', true)
+        
+        // Find the election
+        const election = state.elections.find(e => e.electionId === electionId)
+        if (!election || !election.contract_address) {
+          throw new Error('Election not found or invalid')
+        }
+        
+        // Get the election contract
+        let electionContract = state.contracts.elections[election.contract_address]
+        if (!electionContract) {
+          electionContract = await web3Service.getElectionContract(
+            state.web3,
+            election.contract_address
+          )
+          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
+        }
+        
+        // Get results from the contract
+        const results = await web3Service.getElectionResults(electionContract)
+        
+        commit('SET_LOADING', false)
+        return results
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.message || 'Failed to fetch results')
+        throw error
+      }
+    },
+    
+    // Election phase management
+    async updateElectionPhase({ commit, state }, { electionId, phase }) {
+      try {
+        commit('SET_LOADING', true)
+        
+        // Find the election
+        const election = state.elections.find(e => e.electionId === electionId)
+        if (!election || !election.contract_address) {
+          throw new Error('Election not found or invalid')
+        }
+        
+        // Get the election contract
+        let electionContract = state.contracts.elections[election.contract_address]
+        if (!electionContract) {
+          electionContract = await web3Service.getElectionContract(
+            state.web3,
+            election.contract_address
+          )
+          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
+        }
+        
+        // Update the phase in the contract
+        await web3Service.setElectionPhase(
+          electionContract,
+          phase,
+          state.wallet
+        )
+        
+        // Update in backend as well
+        await api.updateElectionPhase(electionId, phase)
+        
+        commit('SET_LOADING', false)
+        return true
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.message || 'Failed to update election phase')
+        throw error
       }
     }
   }
-});
+})

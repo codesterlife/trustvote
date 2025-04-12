@@ -5,119 +5,70 @@ import "./Election.sol";
 
 /**
  * @title ElectionFactory
- * @dev Handles the creation of new elections
+ * @dev Factory contract for deploying new Election contracts
  */
 contract ElectionFactory {
-    // Array to store all created election addresses
-    address[] public deployedElections;
+    event ElectionCreated(address electionAddress, string title, uint256 timestamp);
     
-    // Mapping to link election IDs to contract addresses
-    mapping(uint256 => address) public electionAddresses;
-    
-    // Admin addresses that can create elections
-    mapping(address => bool) public admins;
-    
-    // Owner of the factory
-    address public owner;
-    
-    // Events
-    event ElectionCreated(address electionAddress, uint256 electionId, string title);
-    event AdminAdded(address admin);
-    event AdminRemoved(address admin);
-    
-    constructor() {
-        owner = msg.sender;
-        admins[msg.sender] = true;
-    }
-    
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can perform this action");
-        _;
-    }
-    
-    modifier onlyAdmin() {
-        require(admins[msg.sender], "Only admins can perform this action");
-        _;
-    }
+    // Array to store all created elections
+    address[] public elections;
     
     /**
-     * @dev Add a new admin
-     * @param admin Address of the new admin
-     */
-    function addAdmin(address admin) public onlyOwner {
-        admins[admin] = true;
-        emit AdminAdded(admin);
-    }
-    
-    /**
-     * @dev Remove an admin
-     * @param admin Address of the admin to remove
-     */
-    function removeAdmin(address admin) public onlyOwner {
-        require(admin != owner, "Cannot remove owner as admin");
-        admins[admin] = false;
-        emit AdminRemoved(admin);
-    }
-    
-    /**
-     * @dev Create a new election
-     * @param electionId ID of the election (from Django backend)
-     * @param title Title of the election
-     * @param description Description of the election
-     * @param startTime Start timestamp for the voting period
-     * @param endTime End timestamp for the voting period
+     * @dev Create a new election contract and store its address
+     * @param _title Title of the election
+     * @param _startTime Start time of the election as Unix timestamp
+     * @param _endTime End time of the election as Unix timestamp
+     * @param _positionIds Array of position IDs to include in the election
+     * @return The address of the created election contract
      */
     function createElection(
-        uint256 electionId,
-        string memory title,
-        string memory description,
-        uint256 startTime,
-        uint256 endTime
-    ) public onlyAdmin {
-        require(electionAddresses[electionId] == address(0), "Election ID already exists");
-        require(endTime > startTime, "End time must be after start time");
-        
-        // Create new election contract
+        string memory _title,
+        uint256 _startTime,
+        uint256 _endTime,
+        uint256[] memory _positionIds
+    ) public returns (address) {
+        // Create a new Election contract
         Election newElection = new Election(
-            electionId,
-            title,
-            description,
-            startTime,
-            endTime,
+            _title,
+            _startTime,
+            _endTime,
+            _positionIds,
             msg.sender
         );
         
-        // Store the election address
+        // Store the address of the new election
         address electionAddress = address(newElection);
-        deployedElections.push(electionAddress);
-        electionAddresses[electionId] = electionAddress;
+        elections.push(electionAddress);
         
-        emit ElectionCreated(electionAddress, electionId, title);
+        // Emit event
+        emit ElectionCreated(electionAddress, _title, block.timestamp);
+        
+        return electionAddress;
     }
     
     /**
-     * @dev Get all deployed elections
-     * @return Array of election contract addresses
+     * @dev Get the number of elections created
+     * @return The total number of elections
      */
-    function getDeployedElections() public view returns (address[] memory) {
-        return deployedElections;
+    function getElectionCount() public view returns (uint256) {
+        return elections.length;
     }
     
     /**
-     * @dev Get election address by ID
-     * @param electionId ID of the election
-     * @return Election contract address
+     * @dev Get an election address by index
+     * @param _index Index in the elections array
+     * @return The address of the election at the specified index
      */
-    function getElectionAddress(uint256 electionId) public view returns (address) {
-        return electionAddresses[electionId];
+    function getElection(uint256 _index) public view returns (address) {
+        require(_index < elections.length, "Index out of bounds");
+        return elections[_index];
     }
     
     /**
-     * @dev Check if address is an admin
-     * @param admin Address to check
-     * @return True if address is an admin
+     * @dev Get all election addresses
+     * @return An array of all election addresses
      */
-    function isAdmin(address admin) public view returns (bool) {
-        return admins[admin];
+    function getAllElections() public view returns (address[] memory) {
+        return elections;
     }
 }

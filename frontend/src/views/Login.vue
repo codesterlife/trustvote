@@ -1,49 +1,72 @@
 <template>
   <div class="login-page">
-    <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-          <div class="card">
-            <div class="card-header bg-primary text-white">
-              <h3 class="mb-0">Login with MetaMask</h3>
-            </div>
-            <div class="card-body">
-              <div class="text-center mb-4">
-                <img src="https://metamask.io/images/metamask-fox.svg" alt="MetaMask Logo" class="metamask-logo mb-3">
-                <p class="mb-4">
-                  To login, you need to connect your MetaMask wallet. Your address will be verified against our registered users.
-                </p>
-                
-                <div v-if="!isConnected">
-                  <MetaMaskButton @connected="handleMetaMaskConnect" />
-                </div>
-                
-                <div v-else-if="isVerifying" class="text-center my-4">
-                  <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                  </div>
-                  <p class="mt-3">Verifying your wallet address...</p>
-                </div>
-                
-                <div v-else-if="isError" class="alert alert-danger mt-4">
-                  <i class="fas fa-exclamation-triangle me-2"></i>
-                  {{ errorMessage }}
-                </div>
-                
-                <div v-else-if="isVerified" class="alert alert-success mt-4">
-                  <i class="fas fa-check-circle me-2"></i>
-                  Successfully verified! Redirecting to elections...
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-5">
+        <div class="card shadow">
+          <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Login to TrustVote</h3>
+          </div>
+          <div class="card-body">
+            <form @submit.prevent="handleLogin">
+              <!-- Error Alert -->
+              <div v-if="error" class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                {{ error }}
+              </div>
+              
+              <!-- Form Fields -->
+              <div class="mb-3">
+                <label for="email" class="form-label">Email Address</label>
+                <input
+                  type="email"
+                  id="email"
+                  v-model="form.email"
+                  class="form-control"
+                  required
+                >
+              </div>
+              
+              <div class="mb-4">
+                <label for="password" class="form-label">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  v-model="form.password"
+                  class="form-control"
+                  required
+                >
+              </div>
+              
+              <div class="mb-4">
+                <div class="blockchain-info alert alert-secondary">
+                  <h5 class="mb-2">
+                    <i class="fab fa-ethereum me-2"></i>
+                    MetaMask Integration
+                  </h5>
+                  <p class="mb-0">
+                    After login, you will need to connect your MetaMask wallet to participate in elections.
+                  </p>
                 </div>
               </div>
               
-              <div class="text-center mt-4">
-                <p>Don't have an account?</p>
-                <router-link to="/register" class="btn btn-outline-primary">
-                  Register Now
-                </router-link>
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg" :disabled="isLoading">
+                  <i class="fas" :class="isLoading ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'"></i>
+                  {{ isLoading ? 'Logging in...' : 'Login' }}
+                </button>
+                
+                <div class="text-center mt-3">
+                  Don't have an account? 
+                  <router-link to="/register" class="text-decoration-none">Register</router-link>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
+        </div>
+        
+        <!-- MetaMask Connection (shown after login) -->
+        <div v-if="isLoggedIn" class="mt-4">
+          <ConnectWallet />
         </div>
       </div>
     </div>
@@ -51,75 +74,58 @@
 </template>
 
 <script>
-import MetaMaskButton from '@/components/MetaMaskButton.vue'
-import web3Service from '@/services/web3'
-import api from '@/services/api'
+import { mapActions, mapGetters } from 'vuex'
+import ConnectWallet from '@/components/ConnectWallet.vue'
 
 export default {
   name: 'Login',
   components: {
-    MetaMaskButton
+    ConnectWallet
   },
   data() {
     return {
-      isConnected: false,
-      isVerifying: false,
-      isVerified: false,
-      isError: false,
-      errorMessage: '',
-      walletAddress: ''
+      form: {
+        email: '',
+        password: ''
+      },
+      error: null,
+      isLoading: false
     }
+  },
+  computed: {
+    ...mapGetters(['isLoggedIn'])
   },
   methods: {
-    async handleMetaMaskConnect(account) {
-      this.isConnected = true
-      this.walletAddress = account
-      this.verifyWallet(account)
-    },
-    async verifyWallet(address) {
-      this.isVerifying = true
-      this.isError = false
-      this.errorMessage = ''
+    ...mapActions(['login']),
+    async handleLogin() {
+      this.error = null
+      this.isLoading = true
       
       try {
-        // Check if wallet is registered with backend
-        const response = await api.verifyVoter(address)
+        await this.login({
+          email: this.form.email,
+          password: this.form.password
+        })
         
-        if (response.data && response.data.verified) {
-          // User is verified, store authentication data
-          await web3Service.authenticate(response.data.token, response.data.user)
-          
-          this.isVerified = true
-          setTimeout(() => {
-            // Redirect based on query param or to elections by default
-            const redirectPath = this.$route.query.redirect || '/elections'
-            this.$router.push(redirectPath)
-          }, 1500)
-        } else {
-          throw new Error('Your wallet address is not registered or not yet approved.')
-        }
+        // Redirect to elections page on successful login
+        this.$router.push('/elections')
       } catch (error) {
         console.error('Login error:', error)
-        this.isError = true
         
-        if (error.response && error.response.data && error.response.data.detail) {
-          this.errorMessage = error.response.data.detail
+        if (error.response && error.response.data) {
+          // Handle API error messages
+          if (error.response.data.non_field_errors) {
+            this.error = error.response.data.non_field_errors[0]
+          } else if (error.response.data.detail) {
+            this.error = error.response.data.detail
+          } else {
+            this.error = 'Invalid email or password'
+          }
         } else {
-          this.errorMessage = error.message || 'Failed to verify your wallet. Please try again.'
+          this.error = 'Login failed. Please try again.'
         }
       } finally {
-        this.isVerifying = false
-      }
-    }
-  },
-  async mounted() {
-    // Check if MetaMask is already connected
-    if (web3Service.isConnected()) {
-      const account = await web3Service.getAccount()
-      if (account) {
-        this.isConnected = true
-        this.walletAddress = account
-        this.verifyWallet(account)
+        this.isLoading = false
       }
     }
   }
@@ -128,21 +134,10 @@ export default {
 
 <style scoped>
 .login-page {
-  padding: 40px 0;
+  margin-top: 40px;
 }
 
-.card {
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  border: none;
-  border-radius: 10px;
-}
-
-.card-header {
-  border-radius: 10px 10px 0 0 !important;
-}
-
-.metamask-logo {
-  width: 100px;
-  height: auto;
+.blockchain-info {
+  border-radius: 8px;
 }
 </style>

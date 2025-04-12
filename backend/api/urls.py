@@ -1,22 +1,27 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from .views import (
+    RegisterView, LoginView, UserDetailView, UpdateWalletView,
+    ElectionViewSet, CandidateViewSet, PartyViewSet, VoteViewSet, VoterViewSet
+)
 
+# Create a router and register viewsets
 router = DefaultRouter()
-router.register(r'voters', views.VoterViewSet)
-router.register(r'elections', views.ElectionViewSet)
-router.register(r'positions', views.PositionViewSet)
-router.register(r'parties', views.PartyViewSet)
-router.register(r'candidates', views.CandidateViewSet)
-router.register(r'votes', views.VoteViewSet)
+router.register(r'elections', ElectionViewSet)
+router.register(r'candidates', CandidateViewSet)
+router.register(r'parties', PartyViewSet)
+router.register(r'votes', VoteViewSet)
+router.register(r'voters', VoterViewSet)
+
+# Auth URLs
+auth_urls = [
+    path('register/', RegisterView.as_view(), name='register'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('user/', UserDetailView.as_view(), name='user-detail'),
+    path('update-wallet/', UpdateWalletView.as_view(), name='update-wallet'),
+]
 
 urlpatterns = [
+    path('auth/', include(auth_urls)),
     path('', include(router.urls)),
-    path('register/', views.VoterRegistrationView.as_view(), name='voter-registration'),
-    path('connect-wallet/', views.ConnectWalletView.as_view(), name='connect-wallet'),
-    path('election-results/<int:election_id>/', views.get_election_results, name='election-results'),
-    path('whitelist-voter/<int:voter_id>/', views.whitelist_voter, name='whitelist-voter'),
-    path('update-election-status/<int:election_id>/', views.update_election_status, name='update-election-status'),
-    path('active-elections/', views.get_active_elections, name='active-elections'),
-    path('voter-status/', views.check_voter_status, name='voter-status'),
 ]

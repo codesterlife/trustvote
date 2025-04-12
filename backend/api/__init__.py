@@ -1,1 +1,1 @@
-# api app initialization
+# TrustVote API application

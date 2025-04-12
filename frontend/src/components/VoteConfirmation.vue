@@ -1,78 +1,48 @@
 <template>
   <div class="vote-confirmation">
-    <div class="text-center mb-4">
-      <div class="confirmation-icon">
-        <i class="fas fa-check-circle text-success vote-animation"></i>
-      </div>
-      <h3 class="mt-3">Vote Successfully Cast!</h3>
-      <p class="text-muted">Your vote has been securely recorded on the blockchain.</p>
-    </div>
-    
-    <div class="card mb-4">
-      <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">Transaction Details</h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Transaction Hash</small>
-          <div class="d-flex align-items-center">
-            <code class="transaction-hash">{{ txHash }}</code>
-            <button class="btn btn-sm btn-outline-secondary ms-2" @click="copyTxHash">
-              <i class="fas fa-copy"></i>
-            </button>
+    <div class="card vote-success">
+      <div class="card-body text-center">
+        <div class="success-icon mb-4">
+          <i class="fas fa-check-circle fa-5x text-success"></i>
+        </div>
+        
+        <h3 class="mb-3">Vote Cast Successfully!</h3>
+        <p class="lead">Your vote has been recorded on the blockchain and cannot be altered.</p>
+        
+        <div class="transaction-details mt-4 mb-4">
+          <div class="alert alert-light">
+            <p class="mb-1"><strong>Transaction Hash:</strong></p>
+            <p class="transaction-hash mb-0">{{ transaction.transactionHash }}</p>
+          </div>
+          
+          <div class="d-flex justify-content-between mt-3">
+            <div>
+              <p class="mb-1"><strong>Election:</strong></p>
+              <p>{{ election.title }}</p>
+            </div>
+            <div>
+              <p class="mb-1"><strong>Position:</strong></p>
+              <p>{{ positionTitle }}</p>
+            </div>
+          </div>
+          
+          <div class="alert alert-secondary p-2 mt-2">
+            <p class="mb-1"><small>Timestamp: {{ transactionTime }}</small></p>
           </div>
         </div>
         
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Block Number</small>
-          <strong>{{ txDetails.blockNumber || 'Pending...' }}</strong>
-        </div>
-        
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Timestamp</small>
-          <strong>{{ txDetails.timestamp || 'Pending...' }}</strong>
-        </div>
-        
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Status</small>
-          <span class="blockchain-status" :class="statusClass">
-            {{ txDetails.status || 'Pending' }}
-          </span>
+        <div class="actions mt-4">
+          <router-link :to="'/elections'" class="btn btn-outline-primary me-2">
+            <i class="fas fa-list me-1"></i>
+            Back to Elections
+          </router-link>
+          
+          <a :href="etherscanLink" target="_blank" class="btn btn-secondary">
+            <i class="fas fa-external-link-alt me-1"></i>
+            View on Etherscan
+          </a>
         </div>
       </div>
-    </div>
-    
-    <div class="card mb-4">
-      <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">Vote Summary</h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Election</small>
-          <strong>{{ voteDetails.electionTitle }}</strong>
-        </div>
-        
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Position</small>
-          <strong>{{ voteDetails.positionTitle }}</strong>
-        </div>
-        
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">Selected Candidate</small>
-          <strong>{{ voteDetails.candidateName }}</strong>
-        </div>
-      </div>
-    </div>
-    
-    <div class="d-grid gap-2 mt-4">
-      <button @click="viewBlockExplorer" class="btn btn-outline-primary">
-        <i class="fas fa-external-link-alt me-2"></i>
-        View on Block Explorer
-      </button>
-      <button @click="$emit('close')" class="btn btn-primary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back to Elections
-      </button>
     </div>
   </div>
 </template>
@@ -81,46 +51,49 @@
 export default {
   name: 'VoteConfirmation',
   props: {
-    txHash: {
-      type: String,
-      required: true
-    },
-    voteDetails: {
+    transaction: {
       type: Object,
       required: true
     },
-    txDetails: {
+    election: {
       type: Object,
-      default: () => ({
-        blockNumber: null,
-        timestamp: null,
-        status: 'Pending'
-      })
+      required: true
+    },
+    positionId: {
+      type: Number,
+      required: true
+    },
+    candidateId: {
+      type: Number,
+      required: true
+    },
+    networkId: {
+      type: Number,
+      required: true
     }
   },
   computed: {
-    statusClass() {
-      const status = this.txDetails.status?.toLowerCase() || ''
-      if (status === 'confirmed' || status === 'success') return 'status-confirmed'
-      if (status === 'failed' || status === 'error') return 'status-failed'
-      return 'status-pending'
-    }
-  },
-  methods: {
-    copyTxHash() {
-      navigator.clipboard.writeText(this.txHash)
-        .then(() => {
-          alert('Transaction hash copied to clipboard')
-        })
-        .catch(err => {
-          console.error('Could not copy text: ', err)
-        })
+    positionTitle() {
+      if (!this.election.positions) return 'Unknown Position'
+      const position = this.election.positions.find(p => p.positionId === this.positionId)
+      return position ? position.title : 'Unknown Position'
     },
-    viewBlockExplorer() {
-      // For Ganache, this would typically open a local URL
-      // For testnets like Rinkeby, Ropsten, etc. it would open Etherscan
-      const baseUrl = 'https://rinkeby.etherscan.io/tx/'
-      window.open(`${baseUrl}${this.txHash}`, '_blank')
+    transactionTime() {
+      return new Date().toLocaleString()
+    },
+    etherscanLink() {
+      const networkUrls = {
+        1: 'https://etherscan.io',
+        3: 'https://ropsten.etherscan.io',
+        4: 'https://rinkeby.etherscan.io',
+        5: 'https://goerli.etherscan.io',
+        42: 'https://kovan.etherscan.io'
+      }
+      
+      const baseUrl = networkUrls[this.networkId] || '#'
+      if (baseUrl === '#') return '#'
+      
+      return `${baseUrl}/tx/${this.transaction.transactionHash}`
     }
   }
 }
@@ -128,33 +101,46 @@ export default {
 
 <style scoped>
 .vote-confirmation {
-  max-width: 600px;
+  max-width: 700px;
   margin: 0 auto;
 }
 
-.confirmation-icon {
-  font-size: 5rem;
-  margin-bottom: 1rem;
+.vote-success {
+  animation: pulse 1.5s ease-in-out;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
-.vote-animation {
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+.transaction-details {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 5px;
+  text-align: left;
 }
 
 .transaction-hash {
   word-break: break-all;
-  background-color: #f8f9fa;
-  padding: 0.5rem;
+  font-family: monospace;
+  font-size: 0.9rem;
+  background-color: #e9ecef;
+  padding: 5px 10px;
   border-radius: 4px;
-  font-size: 0.8rem;
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.success-icon {
+  animation: bounceIn 1s;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(40, 167, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
 }
 </style>

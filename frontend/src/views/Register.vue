@@ -1,115 +1,137 @@
 <template>
   <div class="register-page">
-    <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-          <div class="card">
-            <div class="card-header bg-primary text-white">
-              <h3 class="mb-0">Register as a Voter</h3>
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+          <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Register for TrustVote</h3>
+          </div>
+          <div class="card-body">
+            <div v-if="registrationSuccess" class="registration-success">
+              <div class="text-center mb-4">
+                <i class="fas fa-check-circle text-success fa-5x"></i>
+                <h4 class="mt-3">Registration Successful!</h4>
+                <p class="lead">Your account has been created and is pending admin approval.</p>
+              </div>
+              <div class="alert alert-info">
+                <p><strong>What happens next?</strong></p>
+                <ol>
+                  <li>An admin will verify your details</li>
+                  <li>Once approved, you'll be able to connect your MetaMask wallet</li>
+                  <li>You can then participate in eligible elections</li>
+                </ol>
+              </div>
+              <div class="text-center mt-4">
+                <router-link to="/login" class="btn btn-primary">
+                  Proceed to Login
+                </router-link>
+              </div>
             </div>
-            <div class="card-body">
-              <div v-if="!isMetaMaskConnected" class="text-center mb-4">
-                <p class="mb-3">First, connect your MetaMask wallet to continue:</p>
-                <MetaMaskButton @connected="handleMetaMaskConnect" />
+            
+            <form v-else @submit.prevent="register">
+              <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                Please provide your details to register. After registration, an admin will verify your account.
               </div>
               
-              <form v-else @submit.prevent="registerUser" class="needs-validation" novalidate>
-                <div class="alert alert-info mb-4">
-                  <div class="d-flex align-items-center">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <div>
-                      <strong>Connected Wallet:</strong> {{ truncatedWalletAddress }}
-                    </div>
-                  </div>
+              <!-- Form Fields -->
+              <div class="mb-3">
+                <label for="name" class="form-label">Full Name*</label>
+                <input
+                  type="text"
+                  id="name"
+                  v-model="form.name"
+                  class="form-control"
+                  :class="{ 'is-invalid': errors.name }"
+                  required
+                >
+                <div v-if="errors.name" class="invalid-feedback">
+                  {{ errors.name }}
                 </div>
-                
-                <div class="mb-3">
-                  <label for="studentId" class="form-label">Student ID</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    id="studentId" 
-                    v-model="form.studentId" 
-                    required
-                    :class="{ 'is-invalid': errors.studentId }"
-                  >
-                  <div class="invalid-feedback">{{ errors.studentId }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="studentId" class="form-label">Student ID*</label>
+                <input
+                  type="text"
+                  id="studentId"
+                  v-model="form.studentId"
+                  class="form-control"
+                  :class="{ 'is-invalid': errors.studentId }"
+                  required
+                >
+                <div v-if="errors.studentId" class="invalid-feedback">
+                  {{ errors.studentId }}
                 </div>
-                
-                <div class="mb-3">
-                  <label for="fullName" class="form-label">Full Name</label>
-                  <input 
-                    type="text" 
-                    class="form-control" 
-                    id="fullName" 
-                    v-model="form.fullName" 
-                    required
-                    :class="{ 'is-invalid': errors.fullName }"
-                  >
-                  <div class="invalid-feedback">{{ errors.fullName }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="email" class="form-label">Email Address*</label>
+                <input
+                  type="email"
+                  id="email"
+                  v-model="form.email"
+                  class="form-control"
+                  :class="{ 'is-invalid': errors.email }"
+                  required
+                >
+                <div v-if="errors.email" class="invalid-feedback">
+                  {{ errors.email }}
                 </div>
-                
-                <div class="mb-3">
-                  <label for="email" class="form-label">Email Address</label>
-                  <input 
-                    type="email" 
-                    class="form-control" 
-                    id="email" 
-                    v-model="form.email" 
-                    required
-                    :class="{ 'is-invalid': errors.email }"
-                  >
-                  <div class="invalid-feedback">{{ errors.email }}</div>
+              </div>
+              
+              <div class="mb-3">
+                <label for="password" class="form-label">Password*</label>
+                <input
+                  type="password"
+                  id="password"
+                  v-model="form.password"
+                  class="form-control"
+                  :class="{ 'is-invalid': errors.password }"
+                  required
+                >
+                <div v-if="errors.password" class="invalid-feedback">
+                  {{ errors.password }}
                 </div>
-                
-                <div class="mb-3">
-                  <label for="department" class="form-label">Department</label>
-                  <select 
-                    class="form-select" 
-                    id="department" 
-                    v-model="form.department"
-                    required
-                    :class="{ 'is-invalid': errors.department }"
-                  >
-                    <option value="" disabled>Select your department</option>
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Business">Business</option>
-                    <option value="Arts & Humanities">Arts & Humanities</option>
-                    <option value="Sciences">Sciences</option>
-                  </select>
-                  <div class="invalid-feedback">{{ errors.department }}</div>
+              </div>
+              
+              <div class="mb-4">
+                <label for="confirmPassword" class="form-label">Confirm Password*</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  v-model="form.confirmPassword"
+                  class="form-control"
+                  :class="{ 'is-invalid': errors.confirmPassword }"
+                  required
+                >
+                <div v-if="errors.confirmPassword" class="invalid-feedback">
+                  {{ errors.confirmPassword }}
                 </div>
-                
-                <div class="mb-4">
-                  <div class="form-check">
-                    <input 
-                      class="form-check-input" 
-                      type="checkbox" 
-                      id="terms" 
-                      v-model="form.termsAccepted"
-                      required
-                      :class="{ 'is-invalid': errors.termsAccepted }"
-                    >
-                    <label class="form-check-label" for="terms">
-                      I accept the terms and conditions and understand that my wallet address will be
-                      used for voting verification.
-                    </label>
-                    <div class="invalid-feedback">{{ errors.termsAccepted }}</div>
-                  </div>
+              </div>
+              
+              <div class="blockchain-info mb-4">
+                <div class="alert alert-secondary">
+                  <h5 class="mb-2"><i class="fab fa-ethereum me-2"></i>Blockchain Integration</h5>
+                  <p class="mb-0">
+                    After registration, you'll need to connect your MetaMask wallet to participate in elections.
+                    <br>
+                    <small>Your wallet address will be linked to your account for secure voting.</small>
+                  </p>
                 </div>
-                
-                <div class="d-grid gap-2">
-                  <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-                    <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                    Register
-                  </button>
-                  <router-link to="/login" class="btn btn-outline-secondary">
-                    Already registered? Login
-                  </router-link>
+              </div>
+              
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+                  <i class="fas" :class="isSubmitting ? 'fa-spinner fa-spin' : 'fa-user-plus'"></i>
+                  {{ isSubmitting ? 'Registering...' : 'Register' }}
+                </button>
+                <div class="text-center mt-3">
+                  Already have an account? 
+                  <router-link to="/login" class="text-decoration-none">Login</router-link>
                 </div>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -118,137 +140,94 @@
 </template>
 
 <script>
-import MetaMaskButton from '@/components/MetaMaskButton.vue'
-import web3Service from '@/services/web3'
-import api from '@/services/api'
+import { mapActions } from 'vuex'
 
 export default {
   name: 'Register',
-  components: {
-    MetaMaskButton
-  },
   data() {
     return {
-      isMetaMaskConnected: false,
-      walletAddress: '',
-      isSubmitting: false,
       form: {
+        name: '',
         studentId: '',
-        fullName: '',
         email: '',
-        department: '',
-        termsAccepted: false
+        password: '',
+        confirmPassword: ''
       },
-      errors: {
-        studentId: '',
-        fullName: '',
-        email: '',
-        department: '',
-        termsAccepted: ''
-      }
-    }
-  },
-  computed: {
-    truncatedWalletAddress() {
-      if (!this.walletAddress) return ''
-      return this.walletAddress.substring(0, 6) + '...' + this.walletAddress.substring(this.walletAddress.length - 4)
+      errors: {},
+      isSubmitting: false,
+      registrationSuccess: false
     }
   },
   methods: {
-    async handleMetaMaskConnect(account) {
-      this.isMetaMaskConnected = true
-      this.walletAddress = account
-    },
+    ...mapActions(['register']),
     validateForm() {
-      let isValid = true
-      this.errors = {
-        studentId: '',
-        fullName: '',
-        email: '',
-        department: '',
-        termsAccepted: ''
+      this.errors = {}
+      
+      if (!this.form.name.trim()) {
+        this.errors.name = 'Name is required'
       }
       
-      if (!this.form.studentId) {
+      if (!this.form.studentId.trim()) {
         this.errors.studentId = 'Student ID is required'
-        isValid = false
       }
       
-      if (!this.form.fullName) {
-        this.errors.fullName = 'Full name is required'
-        isValid = false
-      }
-      
-      if (!this.form.email) {
+      if (!this.form.email.trim()) {
         this.errors.email = 'Email is required'
-        isValid = false
-      } else if (!/^\S+@\S+\.\S+$/.test(this.form.email)) {
-        this.errors.email = 'Please enter a valid email address'
-        isValid = false
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email)) {
+        this.errors.email = 'Invalid email format'
       }
       
-      if (!this.form.department) {
-        this.errors.department = 'Please select your department'
-        isValid = false
+      if (!this.form.password) {
+        this.errors.password = 'Password is required'
+      } else if (this.form.password.length < 8) {
+        this.errors.password = 'Password must be at least 8 characters'
       }
       
-      if (!this.form.termsAccepted) {
-        this.errors.termsAccepted = 'You must accept the terms to continue'
-        isValid = false
+      if (this.form.password !== this.form.confirmPassword) {
+        this.errors.confirmPassword = 'Passwords do not match'
       }
       
-      return isValid
+      return Object.keys(this.errors).length === 0
     },
-    async registerUser() {
+    async handleRegister() {
       if (!this.validateForm()) return
       
+      this.isSubmitting = true
+      
       try {
-        this.isSubmitting = true
-        
-        // Prepare registration data
-        const registrationData = {
+        await this.register({
+          name: this.form.name,
           student_id: this.form.studentId,
-          full_name: this.form.fullName,
           email: this.form.email,
-          department: this.form.department,
-          wallet_address: this.walletAddress
-        }
+          password: this.form.password
+        })
         
-        // Send registration request to API
-        await api.registerVoter(registrationData)
-        
-        // Show success message
-        alert('Registration successful! An admin will verify your account soon.')
-        
-        // Redirect to login page
-        this.$router.push('/login')
+        this.registrationSuccess = true
       } catch (error) {
         console.error('Registration error:', error)
         
-        // Handle API errors
+        // Handle API validation errors
         if (error.response && error.response.data) {
-          const responseErrors = error.response.data
+          const apiErrors = error.response.data
           
-          // Map API errors to form fields
-          if (responseErrors.student_id) this.errors.studentId = responseErrors.student_id[0]
-          if (responseErrors.email) this.errors.email = responseErrors.email[0]
-          if (responseErrors.wallet_address) alert(`Wallet error: ${responseErrors.wallet_address[0]}`)
+          if (apiErrors.email) {
+            this.errors.email = apiErrors.email[0]
+          }
           
-          // Generic error
-          if (responseErrors.detail) alert(`Error: ${responseErrors.detail}`)
+          if (apiErrors.student_id) {
+            this.errors.studentId = apiErrors.student_id[0]
+          }
+          
+          if (apiErrors.non_field_errors) {
+            this.errors.general = apiErrors.non_field_errors[0]
+          }
         } else {
-          alert('Registration failed. Please try again later.')
+          // General error
+          this.errors.general = 'Registration failed. Please try again.'
         }
       } finally {
         this.isSubmitting = false
       }
-    }
-  },
-  async mounted() {
-    // Check if MetaMask is already connected
-    if (web3Service.isConnected()) {
-      this.isMetaMaskConnected = true
-      this.walletAddress = await web3Service.getAccount()
     }
   }
 }
@@ -256,16 +235,19 @@ export default {
 
 <style scoped>
 .register-page {
-  padding: 40px 0;
+  margin-top: 20px;
 }
 
-.card {
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  border: none;
-  border-radius: 10px;
+.registration-success {
+  animation: fadeIn 0.5s ease-in-out;
 }
 
-.card-header {
-  border-radius: 10px 10px 0 0 !important;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.blockchain-info {
+  border-radius: 8px;
 }
 </style>

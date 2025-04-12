@@ -1,124 +1,110 @@
 <template>
   <div class="election-detail">
-    <div v-if="isLoading" class="text-center my-5">
+    <div v-if="isLoading" class="text-center py-5">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
-      <p class="mt-3">Loading election details...</p>
+      <p class="mt-2">Loading election details...</p>
     </div>
     
-    <div v-else-if="!election" class="text-center my-5">
-      <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        Election not found
-      </div>
-      <router-link to="/elections" class="btn btn-primary mt-3">
-        Back to Elections
-      </router-link>
+    <div v-else-if="!election" class="alert alert-danger">
+      <i class="fas fa-exclamation-circle me-2"></i>
+      Election not found or has been removed.
     </div>
     
     <div v-else>
       <!-- Election Header -->
-      <div class="card mb-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="mb-0">{{ election.title }}</h1>
-            <span class="badge rounded-pill" :class="phaseClass">
-              {{ election.status }}
-            </span>
-          </div>
-          
-          <p class="lead">{{ election.description }}</p>
-          
-          <div class="row mt-4">
-            <div class="col-md-6">
-              <div class="d-flex align-items-center mb-2">
-                <i class="fas fa-calendar-alt text-primary me-2"></i>
-                <span>
-                  <strong>Start:</strong> {{ formatDate(election.startTime) }}
-                </span>
-              </div>
-              <div class="d-flex align-items-center">
-                <i class="fas fa-calendar-check text-primary me-2"></i>
-                <span>
-                  <strong>End:</strong> {{ formatDate(election.endTime) }}
-                </span>
-              </div>
+      <div class="election-header mb-4">
+        <div class="d-flex justify-content-between align-items-start">
+          <h1>{{ election.title }}</h1>
+          <span class="status-badge" :class="statusClass">
+            {{ election.status }}
+          </span>
+        </div>
+        <p class="lead mb-4">{{ election.description }}</p>
+        
+        <div class="row election-meta mb-4">
+          <div class="col-md-6">
+            <div class="meta-item">
+              <i class="far fa-calendar-alt me-2"></i>
+              <strong>Start:</strong> {{ formatDateTime(election.startTime) }}
             </div>
-            <div class="col-md-6 text-md-end mt-3 mt-md-0">
-              <button 
-                v-if="election.status === 'Voting'" 
-                class="btn btn-success"
-                @click="showPositionSelection = true">
-                <i class="fas fa-vote-yea me-2"></i>
-                Vote Now
-              </button>
-              <router-link 
-                v-if="election.status === 'Closed'" 
-                :to="{ name: 'results', params: { id: election.electionId }}" 
-                class="btn btn-primary">
-                <i class="fas fa-chart-bar me-2"></i>
-                View Results
-              </router-link>
+            <div class="meta-item">
+              <i class="far fa-calendar-check me-2"></i>
+              <strong>End:</strong> {{ formatDateTime(election.endTime) }}
+            </div>
+            <div class="meta-item" v-if="election.contract_address">
+              <i class="fab fa-ethereum me-2"></i>
+              <strong>Contract:</strong> 
+              <a :href="getEtherscanLink(election.contract_address)" target="_blank" class="contract-link">
+                {{ truncatedContractAddress }}
+              </a>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="meta-item">
+              <i class="fas fa-users me-2"></i>
+              <strong>Positions:</strong> {{ election.positions ? election.positions.length : 0 }}
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-user-check me-2"></i>
+              <strong>Eligibility:</strong> Registered and whitelisted students
+            </div>
+            <div class="election-timer meta-item" v-if="election.status === 'Voting'">
+              <i class="fas fa-hourglass-half me-2"></i>
+              <strong>{{ timerLabel }}:</strong> {{ timerValue }}
             </div>
           </div>
         </div>
-      </div>
-      
-      <!-- Position Selection Modal -->
-      <div v-if="showPositionSelection" class="modal-backdrop" @click="showPositionSelection = false">
-        <div class="modal-dialog" @click.stop>
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Select Position to Vote</h5>
-              <button type="button" class="btn-close" @click="showPositionSelection = false"></button>
-            </div>
-            <div class="modal-body">
-              <div class="list-group">
-                <button 
-                  v-for="position in election.positions" 
-                  :key="position.positionId"
-                  class="list-group-item list-group-item-action"
-                  @click="goToVotingBooth(position.positionId)">
-                  {{ position.title }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Positions Tabs -->
-      <ul class="nav nav-tabs mb-4">
-        <li class="nav-item" v-for="position in election.positions" :key="position.positionId">
+        
+        <!-- Action Buttons -->
+        <div class="election-actions mb-5">
           <button 
-            class="nav-link" 
-            :class="{ active: activeTab === position.positionId }"
-            @click="activeTab = position.positionId">
-            {{ position.title }}
+            v-if="canVote" 
+            @click="goToVote" 
+            class="btn btn-primary btn-lg me-2"
+          >
+            <i class="fas fa-vote-yea me-2"></i>
+            Vote Now
           </button>
-        </li>
-      </ul>
-      
-      <!-- Candidates List -->
-      <div v-for="position in election.positions" :key="position.positionId">
-        <div v-if="activeTab === position.positionId">
-          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <div v-for="candidateId in position.candidates" :key="candidateId" class="col">
-              <CandidateCard 
-                :candidate="getCandidateById(candidateId)" 
-                :parties="election.parties" 
-                :selectable="false" 
-                :showResults="false" />
-            </div>
-          </div>
           
-          <div class="text-center mt-4" v-if="election.status === 'Voting'">
-            <button 
-              class="btn btn-lg btn-success"
-              @click="goToVotingBooth(position.positionId)">
-              Vote for {{ position.title }}
-            </button>
+          <router-link :to="`/elections/${electionId}/results`" class="btn btn-outline-secondary btn-lg">
+            <i class="fas fa-chart-pie me-2"></i>
+            View Results
+          </router-link>
+        </div>
+      </div>
+      
+      <!-- Positions and Candidates -->
+      <div v-for="position in election.positions" :key="position.positionId" class="position-section mb-5">
+        <div class="position-header mb-3">
+          <h2>{{ position.title }}</h2>
+          <p class="text-muted">Select candidates for this position</p>
+        </div>
+        
+        <div class="row">
+          <div v-for="candidateId in position.candidates" :key="candidateId" class="col-md-6 col-lg-4 mb-4">
+            <CandidateCard 
+              :candidate="getCandidateById(candidateId)" 
+              :showActions="false"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <!-- Election Parties -->
+      <div v-if="election.parties && election.parties.length > 0" class="parties-section mb-5">
+        <h2 class="mb-4">Participating Parties</h2>
+        <div class="row">
+          <div v-for="party in election.parties" :key="party.partyId" class="col-md-3 mb-4">
+            <div class="card party-card h-100">
+              <div class="card-body text-center">
+                <div class="party-logo mb-3">
+                  <i class="fas fa-users fa-3x" :style="{ color: getPartyColor(party.name) }"></i>
+                </div>
+                <h5 class="card-title">{{ party.name }}</h5>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -127,8 +113,8 @@
 </template>
 
 <script>
+import { mapActions, mapGetters } from 'vuex'
 import CandidateCard from '@/components/CandidateCard.vue'
-import api from '@/services/api'
 
 export default {
   name: 'ElectionDetail',
@@ -137,99 +123,224 @@ export default {
   },
   data() {
     return {
-      election: null,
-      candidates: [],
+      electionId: null,
       isLoading: true,
-      activeTab: null,
-      showPositionSelection: false
+      timer: null,
+      timerValue: '',
+      timerLabel: ''
     }
   },
   computed: {
-    phaseClass() {
-      const status = this.election?.status?.toLowerCase() || ''
-      if (status === 'init') return 'badge-init'
-      if (status === 'voting') return 'badge-voting'
-      if (status === 'closed') return 'badge-closed'
-      return 'bg-secondary'
+    ...mapGetters(['currentElection', 'candidates', 'networkId']),
+    election() {
+      return this.currentElection
+    },
+    canVote() {
+      if (!this.election) return false
+      
+      return this.election.status === 'Voting' && 
+             new Date(this.election.startTime) <= new Date() &&
+             new Date(this.election.endTime) >= new Date()
+    },
+    statusClass() {
+      const statusMap = {
+        'Init': 'status-init',
+        'Voting': 'status-voting',
+        'Closed': 'status-closed'
+      }
+      return this.election ? statusMap[this.election.status] || 'status-init' : ''
+    },
+    truncatedContractAddress() {
+      if (!this.election || !this.election.contract_address) return ''
+      return this.election.contract_address.slice(0, 8) + '...' + this.election.contract_address.slice(-6)
     }
   },
   methods: {
-    async fetchElectionDetails() {
-      try {
-        this.isLoading = true
-        const electionId = this.$route.params.id
-        
-        // Fetch election details
-        const electionResponse = await api.getElection(electionId)
-        this.election = electionResponse.data
-        
-        // Fetch all candidates for this election
-        const candidatesResponse = await api.getCandidatesByElection(electionId)
-        this.candidates = candidatesResponse.data
-        
-        // Set default active tab to first position
-        if (this.election.positions && this.election.positions.length > 0) {
-          this.activeTab = this.election.positions[0].positionId
-        }
-      } catch (error) {
-        console.error('Error fetching election details:', error)
-        // Handle error - show notification
-      } finally {
-        this.isLoading = false
-      }
+    ...mapActions(['fetchElection']),
+    formatDateTime(dateTimeStr) {
+      const date = new Date(dateTimeStr)
+      return date.toLocaleString()
     },
     getCandidateById(candidateId) {
-      return this.candidates.find(c => c.candidateId === candidateId) || {}
+      const candidate = this.candidates.find(c => c.candidateId === candidateId)
+      if (!candidate) return { name: 'Unknown Candidate', bio: 'Candidate information not available' }
+      return candidate
     },
-    formatDate(dateString) {
-      if (!dateString) return 'N/A'
-      const date = new Date(dateString)
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    goToVote() {
+      this.$router.push(`/elections/${this.electionId}/vote`)
     },
-    goToVotingBooth(positionId) {
-      this.showPositionSelection = false
-      this.$router.push({
-        name: 'voting-booth',
-        params: {
-          electionId: this.election.electionId,
-          positionId: positionId
-        }
-      })
+    getEtherscanLink(address) {
+      const networkUrls = {
+        1: 'https://etherscan.io',
+        3: 'https://ropsten.etherscan.io',
+        4: 'https://rinkeby.etherscan.io',
+        5: 'https://goerli.etherscan.io',
+        42: 'https://kovan.etherscan.io'
+      }
+      
+      const baseUrl = networkUrls[this.networkId] || '#'
+      if (baseUrl === '#' || !address) return '#'
+      
+      return `${baseUrl}/address/${address}`
+    },
+    getPartyColor(partyName) {
+      if (!partyName) return '#6c757d'
+      
+      const partyColors = {
+        'Unity Party': '#4CAF50',
+        'Green Future': '#2196F3',
+        'Student Voice': '#FF9800',
+        'Progress Alliance': '#9C27B0'
+      }
+      
+      return partyColors[partyName] || '#6c757d'
+    },
+    updateTimer() {
+      if (!this.election) return
+      
+      const now = new Date()
+      let targetDate, label
+      
+      if (now < new Date(this.election.startTime)) {
+        // Election hasn't started yet
+        targetDate = new Date(this.election.startTime)
+        label = 'Starts in'
+      } else if (now < new Date(this.election.endTime)) {
+        // Election is ongoing
+        targetDate = new Date(this.election.endTime)
+        label = 'Ends in'
+      } else {
+        // Election has ended
+        this.timerValue = 'Election has ended'
+        this.timerLabel = 'Status'
+        return
+      }
+      
+      const difference = targetDate - now
+      
+      if (difference <= 0) {
+        // Refresh the page to update status
+        window.location.reload()
+        return
+      }
+      
+      // Calculate days, hours, minutes, seconds
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000)
+      
+      // Format timer value
+      this.timerValue = `${days}d ${hours}h ${minutes}m ${seconds}s`
+      this.timerLabel = label
     }
   },
-  mounted() {
-    this.fetchElectionDetails()
+  async created() {
+    this.electionId = parseInt(this.$route.params.id)
+    
+    try {
+      await this.fetchElection(this.electionId)
+      this.isLoading = false
+      
+      // Start the timer
+      this.updateTimer()
+      this.timer = setInterval(this.updateTimer, 1000)
+    } catch (error) {
+      console.error('Error fetching election details:', error)
+      this.isLoading = false
+    }
+  },
+  beforeUnmount() {
+    // Clear the timer when component is unmounted
+    if (this.timer) {
+      clearInterval(this.timer)
+    }
   }
 }
 </script>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1050;
+.election-header {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
 }
 
-.modal-dialog {
-  width: 100%;
-  max-width: 500px;
-  margin: 1.75rem auto;
-}
-
-.nav-tabs .nav-link {
-  cursor: pointer;
-}
-
-.nav-tabs .nav-link.active {
+.status-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
   font-weight: bold;
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+  color: white;
+}
+
+.status-init {
+  background-color: #6c757d;
+}
+
+.status-voting {
+  background-color: #28a745;
+}
+
+.status-closed {
+  background-color: #dc3545;
+}
+
+.election-meta {
+  font-size: 1rem;
+}
+
+.meta-item {
+  margin-bottom: 10px;
+}
+
+.contract-link {
+  font-family: monospace;
+  text-decoration: none;
+}
+
+.contract-link:hover {
+  text-decoration: underline;
+}
+
+.position-header {
+  position: relative;
+  padding-bottom: 10px;
+}
+
+.position-header:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background-color: #6c63ff;
+}
+
+.party-card {
+  transition: all 0.3s ease;
+  border: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.party-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.party-logo {
+  display: inline-block;
+  width: 70px;
+  height: 70px;
+  line-height: 70px;
+  border-radius: 50%;
+  background-color: #f8f9fa;
+}
+
+.election-timer {
+  font-weight: bold;
+  color: #6c63ff;
 }
 </style>

@@ -1,56 +1,48 @@
 <template>
-  <div class="card candidate-card h-100">
-    <div class="position-relative">
-      <div class="candidate-img-container">
-        <img :src="candidateImage" class="card-img-top candidate-img" alt="Candidate Photo">
-        <div v-if="candidate.partyId" class="party-badge">
-          <span>{{ getPartyName(candidate.partyId) }}</span>
+  <div class="card candidate-card mb-4">
+    <div class="party-badge" :style="{ backgroundColor: partyColor }">
+      {{ candidate.partyName }}
+    </div>
+    <div class="card-body d-flex">
+      <div class="candidate-img-container me-3">
+        <div class="placeholder-img d-flex align-items-center justify-content-center bg-light">
+          <i class="fas fa-user fa-3x text-secondary"></i>
+        </div>
+      </div>
+      <div class="candidate-info">
+        <h5 class="card-title">{{ candidate.name }}</h5>
+        <p class="position-title mb-2">{{ candidate.positionTitle }}</p>
+        <p class="card-text">{{ candidate.bio }}</p>
+        
+        <div v-if="showActions" class="d-flex justify-content-between mt-3">
+          <button @click="showManifesto" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-file-alt me-1"></i>
+            View Manifesto
+          </button>
+          
+          <button v-if="canVote" @click="$emit('vote', candidate)" class="btn btn-sm btn-primary">
+            <i class="fas fa-vote-yea me-1"></i>
+            Vote
+          </button>
         </div>
       </div>
     </div>
-    <div class="card-body">
-      <h5 class="card-title">{{ candidate.name }}</h5>
-      <p class="card-text text-muted">{{ candidate.bio }}</p>
-      
-      <div class="accordion accordion-flush" :id="`accordionCandidate${candidate.candidateId}`">
-        <div class="accordion-item">
-          <h2 class="accordion-header" :id="`headingManifesto${candidate.candidateId}`">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                   :data-bs-target="`#collapseManifesto${candidate.candidateId}`">
-              Manifesto
-            </button>
-          </h2>
-          <div :id="`collapseManifesto${candidate.candidateId}`" class="accordion-collapse collapse" 
-               :aria-labelledby="`headingManifesto${candidate.candidateId}`">
-            <div class="accordion-body">
-              {{ candidate.manifesto }}
-            </div>
+    
+    <!-- Manifesto Modal -->
+    <div class="modal fade" id="manifestoModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ candidate.name }} - Manifesto</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>{{ candidate.manifesto }}</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="card-footer bg-transparent text-center">
-      <button 
-        v-if="selectable" 
-        @click="selectCandidate" 
-        class="btn btn-primary w-100"
-        :class="{ 'btn-success': isSelected }">
-        <span v-if="isSelected">
-          <i class="fas fa-check me-2"></i>Selected
-        </span>
-        <span v-else>Select Candidate</span>
-      </button>
-      <div v-else-if="showResults" class="text-center">
-        <div class="progress mb-2">
-          <div class="progress-bar" role="progressbar" 
-               :style="`width: ${votePercentage}%`" 
-               :aria-valuenow="votePercentage" 
-               aria-valuemin="0" 
-               aria-valuemax="100">
-            {{ votePercentage }}%
-          </div>
-        </div>
-        <small class="text-muted">{{ candidate.voteCount || 0 }} votes</small>
       </div>
     </div>
   </div>
@@ -64,58 +56,35 @@ export default {
       type: Object,
       required: true
     },
-    selectable: {
+    showActions: {
       type: Boolean,
-      default: false
+      default: true
     },
-    selected: {
-      type: Boolean,
-      default: false
-    },
-    parties: {
-      type: Array,
-      default: () => []
-    },
-    totalVotes: {
-      type: Number,
-      default: 0
-    },
-    showResults: {
+    canVote: {
       type: Boolean,
       default: false
     }
   },
   computed: {
-    isSelected() {
-      return this.selected
-    },
-    candidateImage() {
-      // Using the candidateId to determine which image to show
-      const images = [
-        'https://images.unsplash.com/photo-1516534775068-ba3e7458af70',
-        'https://images.unsplash.com/photo-1503676382389-4809596d5290',
-        'https://images.unsplash.com/photo-1530099486328-e021101a494a',
-        'https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06',
-        'https://images.unsplash.com/photo-1460518451285-97b6aa326961',
-        'https://images.unsplash.com/photo-1494883759339-0b042055a4ee'
-      ]
+    partyColor() {
+      // Generate a deterministic color based on the party name
+      if (!this.candidate.partyName) return '#6c757d'
       
-      // Use modulo to cycle through the images based on candidateId
-      const index = (this.candidate.candidateId % images.length)
-      return images[index]
-    },
-    votePercentage() {
-      if (!this.totalVotes || !this.candidate.voteCount) return 0
-      return Math.round((this.candidate.voteCount / this.totalVotes) * 100)
+      const partyColors = {
+        'Unity Party': '#4CAF50',
+        'Green Future': '#2196F3',
+        'Student Voice': '#FF9800',
+        'Progress Alliance': '#9C27B0'
+      }
+      
+      return partyColors[this.candidate.partyName] || '#6c757d'
     }
   },
   methods: {
-    selectCandidate() {
-      this.$emit('select', this.candidate)
-    },
-    getPartyName(partyId) {
-      const party = this.parties.find(p => p.partyId === partyId)
-      return party ? party.name : 'Independent'
+    showManifesto() {
+      // Bootstrap modal
+      const modal = new bootstrap.Modal(document.getElementById('manifestoModal'))
+      modal.show()
     }
   }
 }
@@ -123,38 +92,47 @@ export default {
 
 <style scoped>
 .candidate-card {
-  transition: transform 0.2s ease-in-out;
-}
-
-.candidate-card:hover {
-  transform: translateY(-5px);
-}
-
-.candidate-img-container {
+  border-radius: 8px;
+  transition: all 0.3s ease;
   position: relative;
-  height: 200px;
   overflow: hidden;
 }
 
-.candidate-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.candidate-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .party-badge {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  top: 10px;
+  right: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: bold;
   color: white;
-  padding: 5px 10px;
-  font-size: 0.8rem;
-  border-top-left-radius: 5px;
 }
 
-.progress {
-  height: 10px;
-  border-radius: 5px;
+.candidate-img-container {
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+}
+
+.placeholder-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.position-title {
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.candidate-info {
+  flex: 1;
 }
 </style>

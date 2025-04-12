@@ -1,284 +1,266 @@
 from rest_framework import viewsets, permissions, status, generics
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
-from .models import Voter, Election, Position, Party, Candidate, Vote
+from .models import User, Election, Position, Candidate, Party, Vote
 from .serializers import (
-    UserSerializer, VoterSerializer, VoterRegistrationSerializer, ElectionSerializer,
-    PositionSerializer, PartySerializer, CandidateSerializer, VoteSerializer,
-    ElectionResultsSerializer, WalletConnectionSerializer
+    UserSerializer, RegisterSerializer, LoginSerializer, ElectionSerializer,
+    PositionSerializer, CandidateSerializer, PartySerializer, VoteSerializer
 )
 
-class IsAdminUser(permissions.BasePermission):
+class IsAdminOrReadOnly(permissions.BasePermission):
     """
-    Custom permission to only allow admin users to access the view.
+    Custom permission to only allow admin users to edit objects.
     """
     def has_permission(self, request, view):
-        return request.user and request.user.is_staff
-
-class IsVoterOrAdmin(permissions.BasePermission):
-    """
-    Custom permission to allow voters to access their own data and admins to access all.
-    """
-    def has_object_permission(self, request, view, obj):
-        if request.user.is_staff:
+        # Read permissions are allowed to any request
+        if request.method in permissions.SAFE_METHODS:
             return True
         
-        # For voters, only allow access to own data
-        try:
-            voter = request.user.voter
-            return voter.id == obj.id
-        except:
-            return False
+        # Write permissions are only allowed to admin users
+        return request.user and request.user.is_admin
 
-class VoterRegistrationView(generics.CreateAPIView):
+class RegisterView(generics.CreateAPIView):
     """
-    API endpoint for voter registration.
+    API endpoint for user registration
     """
-    serializer_class = VoterRegistrationSerializer
+    queryset = User.objects.all()
+    serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        # Create token for the newly registered user
+        token, created = Token.objects.get_or_create(user=user)
+        
+        return Response({
+            "user": UserSerializer(user).data,
+            "token": token.key
+        }, status=status.HTTP_201_CREATED)
 
-class VoterViewSet(viewsets.ModelViewSet):
+class LoginView(APIView):
     """
-    API endpoint for managing voters.
+    API endpoint for user login
     """
-    queryset = Voter.objects.all()
-    serializer_class = VoterSerializer
-    permission_classes = [permissions.IsAuthenticated, IsVoterOrAdmin]
-
-    def get_queryset(self):
-        if self.request.user.is_staff:
-            return Voter.objects.all()
-        try:
-            return Voter.objects.filter(user=self.request.user)
-        except:
-            return Voter.objects.none()
-
-class ConnectWalletView(APIView):
-    """
-    API endpoint for connecting a wallet to a voter account.
-    """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        serializer = WalletConnectionSerializer(data=request.data)
-        if serializer.is_valid():
-            wallet_address = serializer.validated_data['wallet_address']
-            
-            try:
-                voter = request.user.voter
-                voter.wallet_address = wallet_address
-                voter.save()
-                return Response({"status": "success", "message": "Wallet connected successfully"}, status=status.HTTP_200_OK)
-            except Voter.DoesNotExist:
-                return Response({"status": "error", "message": "Voter profile not found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        
+        # Create or get user token
+        token, created = Token.objects.get_or_create(user=user)
+        
+        return Response({
+            "user": UserSerializer(user).data,
+            "token": token.key
+        })
+
+class UserDetailView(generics.RetrieveAPIView):
+    """
+    API endpoint to get current user details
+    """
+    serializer_class = UserSerializer
+    
+    def get_object(self):
+        return self.request.user
+
+class UpdateWalletView(APIView):
+    """
+    API endpoint to update user wallet address
+    """
+    def post(self, request):
+        wallet_address = request.data.get('wallet_address')
+        if not wallet_address:
+            return Response({"error": "Wallet address is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update user's wallet address
+        user = request.user
+        user.wallet_address = wallet_address
+        user.save()
+        
+        return Response({
+            "user": UserSerializer(user).data,
+            "wallet_address": wallet_address
+        })
 
 class ElectionViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing elections.
+    API endpoints for election management
     """
     queryset = Election.objects.all()
     serializer_class = ElectionSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
     
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsAdminUser()]
-        return [permissions.IsAuthenticated()]
-
-class PositionViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing positions.
-    """
-    queryset = Position.objects.all()
-    serializer_class = PositionSerializer
+    def create(self, request, *args, **kwargs):
+        positions_data = request.data.pop('positions', [])
+        serializer = self.get_serializer(data=request.data, context={'positions': positions_data})
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+    def update(self, request, *args, **kwargs):
+        positions_data = request.data.pop('positions', [])
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, 
+                                        partial=kwargs.get('partial', False),
+                                        context={'positions': positions_data})
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        return Response(serializer.data)
     
-    def get_queryset(self):
-        election_id = self.request.query_params.get('election', None)
-        if election_id:
-            return Position.objects.filter(election__id=election_id)
-        return Position.objects.all()
-
-class PartyViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for managing parties.
-    """
-    queryset = Party.objects.all()
-    serializer_class = PartySerializer
+    @action(detail=True, methods=['get'])
+    def candidates(self, request, pk=None):
+        """
+        Get all candidates for a specific election
+        """
+        election = self.get_object()
+        candidates = Candidate.objects.filter(election=election)
+        serializer = CandidateSerializer(candidates, many=True)
+        return Response(serializer.data)
     
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+    @action(detail=True, methods=['post'])
+    def whitelist(self, request, pk=None):
+        """
+        Whitelist a voter for this election
+        Admin only
+        """
+        if not request.user.is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+        
+        wallet_address = request.data.get('wallet_address')
+        if not wallet_address:
+            return Response({"error": "Wallet address is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find user by wallet address and whitelist them
+        try:
+            user = User.objects.get(wallet_address=wallet_address)
+            user.is_whitelisted = True
+            user.save()
+            return Response({"message": "Voter whitelisted successfully"})
+        except User.DoesNotExist:
+            return Response({"error": "No user found with this wallet address"}, 
+                            status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['patch'])
+    def phase(self, request, pk=None):
+        """
+        Update the election phase/status
+        Admin only
+        """
+        if not request.user.is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+        
+        election = self.get_object()
+        status_value = request.data.get('status')
+        
+        if not status_value or status_value not in [s[0] for s in Election.ELECTION_STATUS]:
+            return Response({"error": "Invalid status value"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        election.status = status_value
+        election.save()
+        
+        return Response({"message": f"Election phase updated to {status_value}"})
+    
+    @action(detail=True, methods=['get'])
+    def results(self, request, pk=None):
+        """
+        Get election results by position
+        """
+        election = self.get_object()
+        
+        # Organize votes by position and candidate
+        result_data = {}
+        positions = Position.objects.filter(election=election)
+        
+        for position in positions:
+            candidates = Candidate.objects.filter(position=position)
+            position_votes = []
+            
+            for candidate in candidates:
+                vote_count = Vote.objects.filter(
+                    election=election,
+                    position=position,
+                    candidate=candidate
+                ).count()
+                
+                position_votes.append({
+                    'candidateId': candidate.candidate_id,
+                    'votes': vote_count
+                })
+            
+            result_data[position.position_id] = position_votes
+        
+        return Response(result_data)
 
 class CandidateViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing candidates.
+    API endpoints for candidate management
     """
     queryset = Candidate.objects.all()
     serializer_class = CandidateSerializer
-    
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
     
     def get_queryset(self):
-        position_id = self.request.query_params.get('position', None)
+        """
+        Optionally filter by election
+        """
+        queryset = Candidate.objects.all()
         election_id = self.request.query_params.get('election', None)
-        
-        if position_id:
-            return Candidate.objects.filter(position__id=position_id)
-        elif election_id:
-            return Candidate.objects.filter(position__election__id=election_id)
-        return Candidate.objects.all()
+        if election_id is not None:
+            queryset = queryset.filter(election__id=election_id)
+        return queryset
+
+class PartyViewSet(viewsets.ModelViewSet):
+    """
+    API endpoints for party management
+    """
+    queryset = Party.objects.all()
+    serializer_class = PartySerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
 
 class VoteViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing votes.
+    API endpoints for vote management
     """
     queryset = Vote.objects.all()
     serializer_class = VoteSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def create(self, request, *args, **kwargs):
-        # Set the voter to the current user's voter instance
-        try:
-            voter = request.user.voter
-            request.data['voter'] = voter.id
-        except Voter.DoesNotExist:
-            return Response({"status": "error", "message": "Voter profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        # Store the transaction hash if provided
+        tx_hash = request.data.get('transaction_hash')
         
-        return super().create(request, *args, **kwargs)
+        # Create and validate the vote
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Add the transaction hash to the validated data
+        serializer.validated_data['transaction_hash'] = tx_hash
+        
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+class VoterViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoints for voter management
+    Admin only
+    """
+    queryset = User.objects.filter(is_staff=False, is_superuser=False)
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
     
     def get_queryset(self):
-        if self.request.user.is_staff:
-            return Vote.objects.all()
-        try:
-            return Vote.objects.filter(voter__user=self.request.user)
-        except:
-            return Vote.objects.none()
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def get_election_results(request, election_id):
-    """
-    Get the results for a specific election.
-    """
-    election = get_object_or_404(Election, pk=election_id)
-    
-    # Only show results if the election is closed or the user is an admin
-    if election.status != 'closed' and not request.user.is_staff:
-        return Response({"status": "error", "message": "Results not available until election is closed"}, status=status.HTTP_403_FORBIDDEN)
-    
-    results = []
-    
-    for position in election.positions.all():
-        position_results = []
-        candidates = position.candidates.all()
-        
-        for candidate in candidates:
-            vote_count = Vote.objects.filter(election=election, position=position, candidate=candidate).count()
-            position_results.append({
-                'candidate_id': candidate.id,
-                'candidate_name': candidate.name,
-                'party_name': candidate.party.name if candidate.party else None,
-                'vote_count': vote_count
-            })
-        
-        # Sort candidates by vote count in descending order
-        position_results = sorted(position_results, key=lambda x: x['vote_count'], reverse=True)
-        
-        results.append({
-            'position_id': position.id,
-            'position_title': position.title,
-            'candidates': position_results
-        })
-    
-    return Response({
-        'election_id': election.id,
-        'election_title': election.title,
-        'results': results
-    })
-
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated, IsAdminUser])
-def whitelist_voter(request, voter_id):
-    """
-    Whitelist a voter for elections.
-    """
-    voter = get_object_or_404(Voter, pk=voter_id)
-    
-    if not voter.wallet_address:
-        return Response({"status": "error", "message": "Voter has no wallet address"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    voter.is_verified = True
-    voter.is_whitelisted = True
-    voter.save()
-    
-    return Response({"status": "success", "message": "Voter whitelisted successfully"})
-
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated, IsAdminUser])
-def update_election_status(request, election_id):
-    """
-    Update the status of an election.
-    """
-    election = get_object_or_404(Election, pk=election_id)
-    status_value = request.data.get('status')
-    
-    if status_value not in dict(Election.PHASE_CHOICES):
-        return Response({"status": "error", "message": "Invalid status value"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    election.status = status_value
-    election.save()
-    
-    return Response({"status": "success", "message": f"Election status updated to {status_value}"})
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def get_active_elections(request):
-    """
-    Get all active elections.
-    """
-    now = timezone.now()
-    active_elections = Election.objects.filter(
-        status='voting',
-        start_time__lte=now,
-        end_time__gte=now
-    )
-    
-    serializer = ElectionSerializer(active_elections, many=True)
-    return Response(serializer.data)
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def check_voter_status(request):
-    """
-    Check if the current user has a verified voter profile.
-    """
-    try:
-        voter = request.user.voter
-        return Response({
-            "is_registered": True,
-            "is_verified": voter.is_verified,
-            "is_whitelisted": voter.is_whitelisted,
-            "has_wallet": bool(voter.wallet_address),
-            "wallet_address": voter.wallet_address
-        })
-    except Voter.DoesNotExist:
-        return Response({
-            "is_registered": False,
-            "is_verified": False,
-            "is_whitelisted": False,
-            "has_wallet": False,
-            "wallet_address": None
-        })
+        if self.request.user.is_admin:
+            return User.objects.filter(is_staff=False, is_superuser=False)
+        return User.objects.none()

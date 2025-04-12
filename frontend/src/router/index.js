@@ -1,127 +1,102 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import web3Service from '@/services/web3'
-
-// Views
 import Home from '@/views/Home.vue'
 import Register from '@/views/Register.vue'
 import Login from '@/views/Login.vue'
 import Elections from '@/views/Elections.vue'
 import ElectionDetail from '@/views/ElectionDetail.vue'
-import VotingBooth from '@/views/VotingBooth.vue'
+import VotingPage from '@/views/VotingPage.vue'
 import Results from '@/views/Results.vue'
-
-// Admin views
-import AdminDashboard from '@/views/Admin/Dashboard.vue'
-import ManageElections from '@/views/Admin/ManageElections.vue'
-import ManageCandidates from '@/views/Admin/ManageCandidates.vue'
-import ManageVoters from '@/views/Admin/ManageVoters.vue'
-import ViewResults from '@/views/Admin/ViewResults.vue'
+import Dashboard from '@/views/admin/Dashboard.vue'
+import ElectionManagement from '@/views/admin/ElectionManagement.vue'
+import CandidateManagement from '@/views/admin/CandidateManagement.vue'
+import VoterManagement from '@/views/admin/VoterManagement.vue'
+import ResultsView from '@/views/admin/ResultsView.vue'
+import store from '@/store'
 
 const routes = [
   {
     path: '/',
-    name: 'home',
+    name: 'Home',
     component: Home
   },
   {
     path: '/register',
-    name: 'register',
+    name: 'Register',
     component: Register
   },
   {
     path: '/login',
-    name: 'login',
+    name: 'Login',
     component: Login
   },
   {
     path: '/elections',
-    name: 'elections',
+    name: 'Elections',
     component: Elections,
     meta: { requiresAuth: true }
   },
   {
-    path: '/election/:id',
-    name: 'election-detail',
+    path: '/elections/:id',
+    name: 'ElectionDetail',
     component: ElectionDetail,
     meta: { requiresAuth: true }
   },
   {
-    path: '/vote/:electionId/:positionId',
-    name: 'voting-booth',
-    component: VotingBooth,
+    path: '/elections/:id/vote',
+    name: 'VotingPage',
+    component: VotingPage,
     meta: { requiresAuth: true }
   },
   {
-    path: '/results/:id',
-    name: 'results',
+    path: '/elections/:id/results',
+    name: 'Results',
     component: Results,
     meta: { requiresAuth: true }
   },
   {
     path: '/admin',
-    name: 'admin-dashboard',
-    component: AdminDashboard,
-    meta: { requiresAuth: true, requiresAdmin: true }
-  },
-  {
-    path: '/admin/elections',
-    name: 'manage-elections',
-    component: ManageElections,
-    meta: { requiresAuth: true, requiresAdmin: true }
-  },
-  {
-    path: '/admin/candidates',
-    name: 'manage-candidates',
-    component: ManageCandidates,
-    meta: { requiresAuth: true, requiresAdmin: true }
-  },
-  {
-    path: '/admin/voters',
-    name: 'manage-voters',
-    component: ManageVoters,
-    meta: { requiresAuth: true, requiresAdmin: true }
-  },
-  {
-    path: '/admin/results',
-    name: 'view-results',
-    component: ViewResults,
-    meta: { requiresAuth: true, requiresAdmin: true }
+    name: 'Dashboard',
+    component: Dashboard,
+    meta: { requiresAdmin: true },
+    children: [
+      {
+        path: 'elections',
+        name: 'ElectionManagement',
+        component: ElectionManagement
+      },
+      {
+        path: 'candidates',
+        name: 'CandidateManagement',
+        component: CandidateManagement
+      },
+      {
+        path: 'voters',
+        name: 'VoterManagement',
+        component: VoterManagement
+      },
+      {
+        path: 'results',
+        name: 'ResultsView',
+        component: ResultsView
+      }
+    ]
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  linkActiveClass: 'active'
+  history: createWebHistory(process.env.BASE_URL),
+  routes
 })
 
-// Navigation guard
-router.beforeEach(async (to, from, next) => {
-  // Check if route requires authentication
-  if (to.matched.some(record => record.meta.requiresAuth)) {
-    // Check if user is connected to MetaMask
-    if (!web3Service.isConnected()) {
-      next({ name: 'login', query: { redirect: to.fullPath } })
-      return
-    }
-    
-    // Check if user is authenticated
-    const isAuthenticated = await web3Service.isAuthenticated()
-    if (!isAuthenticated) {
-      next({ name: 'login', query: { redirect: to.fullPath } })
-      return
-    }
-    
-    // Check if route requires admin role
-    if (to.matched.some(record => record.meta.requiresAdmin)) {
-      const isAdmin = await web3Service.isAdmin()
-      if (!isAdmin) {
-        next({ name: 'elections' })
-        return
-      }
-    }
-    
-    next()
+// Navigation Guards
+router.beforeEach((to, from, next) => {
+  const isLoggedIn = store.getters.isLoggedIn
+  const isAdmin = store.getters.isAdmin
+  
+  if (to.matched.some(record => record.meta.requiresAuth) && !isLoggedIn) {
+    next('/login')
+  } else if (to.matched.some(record => record.meta.requiresAdmin) && !isAdmin) {
+    next('/')
   } else {
     next()
   }

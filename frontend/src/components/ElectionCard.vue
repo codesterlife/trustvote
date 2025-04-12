@@ -1,51 +1,51 @@
 <template>
-  <div class="card h-100">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <h5 class="mb-0">{{ election.title }}</h5>
-      <span class="badge rounded-pill" :class="phaseClass">
-        {{ phaseText }}
-      </span>
+  <div class="card election-card mb-4">
+    <div class="status-badge" :class="statusClass">
+      {{ election.status }}
     </div>
     <div class="card-body">
+      <h5 class="card-title">{{ election.title }}</h5>
       <p class="card-text">{{ election.description }}</p>
       
-      <div class="mb-3">
-        <h6>Positions:</h6>
-        <ul class="list-group">
-          <li class="list-group-item" v-for="position in election.positions" :key="position.positionId">
-            {{ position.title }}
-          </li>
-        </ul>
+      <div class="election-details mb-3">
+        <div class="detail-item">
+          <i class="far fa-calendar-alt me-2"></i>
+          <span>Start: {{ formatDateTime(election.startTime) }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="far fa-calendar-check me-2"></i>
+          <span>End: {{ formatDateTime(election.endTime) }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="fas fa-users me-2"></i>
+          <span>{{ positionsCount }} Position{{ positionsCount !== 1 ? 's' : '' }}</span>
+        </div>
       </div>
       
-      <div class="d-flex justify-content-between align-items-center text-muted small">
-        <div>
-          <i class="fas fa-calendar me-1"></i> Starts: {{ formatDate(election.startTime) }}
-        </div>
-        <div>
-          <i class="fas fa-calendar-check me-1"></i> Ends: {{ formatDate(election.endTime) }}
-        </div>
+      <div v-if="isBlockchainLinked" class="mb-3 blockchain-info">
+        <small class="text-muted d-block mb-1">
+          <i class="fab fa-ethereum me-1"></i>
+          Contract: {{ truncatedContractAddress }}
+        </small>
       </div>
-    </div>
-    <div class="card-footer bg-transparent border-top-0">
-      <div class="d-grid gap-2">
-        <router-link 
-          :to="{ name: 'election-detail', params: { id: election.electionId }}" 
-          class="btn btn-primary">
-          View Details
+      
+      <div class="d-flex justify-content-between">
+        <router-link :to="`/elections/${election.electionId}`" class="btn btn-outline-primary">
+          <i class="fas fa-info-circle me-1"></i>
+          Details
         </router-link>
-        <button 
-          v-if="election.status === 'Voting'" 
-          class="btn btn-success"
-          @click="onVoteClick">
-          Vote Now
-        </button>
-        <router-link 
-          v-if="election.status === 'Closed'" 
-          :to="{ name: 'results', params: { id: election.electionId }}" 
-          class="btn btn-secondary">
-          View Results
-        </router-link>
+        
+        <div>
+          <router-link v-if="canVote" :to="`/elections/${election.electionId}/vote`" class="btn btn-primary me-2">
+            <i class="fas fa-vote-yea me-1"></i>
+            Vote
+          </router-link>
+          
+          <router-link :to="`/elections/${election.electionId}/results`" class="btn btn-outline-secondary">
+            <i class="fas fa-chart-pie me-1"></i>
+            Results
+          </router-link>
+        </div>
       </div>
     </div>
   </div>
@@ -61,42 +61,84 @@ export default {
     }
   },
   computed: {
-    phaseText() {
-      return this.election.status || 'Unknown'
+    positionsCount() {
+      return this.election.positions ? this.election.positions.length : 0
     },
-    phaseClass() {
-      const status = this.election.status?.toLowerCase() || ''
-      if (status === 'init') return 'badge-init'
-      if (status === 'voting') return 'badge-voting'
-      if (status === 'closed') return 'badge-closed'
-      return 'bg-secondary'
+    isBlockchainLinked() {
+      return !!this.election.contract_address
+    },
+    truncatedContractAddress() {
+      if (!this.election.contract_address) return ''
+      return this.election.contract_address.slice(0, 6) + '...' + this.election.contract_address.slice(-4)
+    },
+    statusClass() {
+      const statusMap = {
+        'Init': 'status-init',
+        'Voting': 'status-voting',
+        'Closed': 'status-closed'
+      }
+      return statusMap[this.election.status] || 'status-init'
+    },
+    canVote() {
+      return this.election.status === 'Voting' && 
+             new Date(this.election.startTime) <= new Date() &&
+             new Date(this.election.endTime) >= new Date()
     }
   },
   methods: {
-    formatDate(dateString) {
-      if (!dateString) return 'N/A'
-      const date = new Date(dateString)
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    onVoteClick() {
-      this.$emit('vote', this.election)
+    formatDateTime(dateTimeStr) {
+      const date = new Date(dateTimeStr)
+      return date.toLocaleString()
     }
   }
 }
 </script>
 
 <style scoped>
-.card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+.election-card {
+  border: 1px solid rgba(0, 0, 0, 0.125);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.card:hover {
+.election-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-.badge {
-  font-size: 0.7rem;
-  padding: 0.35rem 0.65rem;
+.status-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: white;
+}
+
+.status-init {
+  background-color: #6c757d;
+}
+
+.status-voting {
+  background-color: #28a745;
+}
+
+.status-closed {
+  background-color: #dc3545;
+}
+
+.detail-item {
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.blockchain-info {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding-top: 8px;
 }
 </style>

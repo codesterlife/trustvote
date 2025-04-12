@@ -1,1 +1,1 @@
-# trustvote package initialization
+# TrustVote blockchain voting application

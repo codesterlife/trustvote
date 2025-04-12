@@ -1,228 +1,310 @@
 <template>
   <div class="home">
     <!-- Hero Section -->
-    <div class="hero-section py-5 mb-5 text-center">
-      <div class="container">
-        <h1 class="display-4 fw-bold mb-4">Welcome to TrustVote</h1>
-        <p class="lead mb-4">
-          A secure, transparent, and decentralized voting platform powered by blockchain technology.
-          Cast your vote with confidence knowing it's immutable and verifiable.
-        </p>
-        <div class="d-flex justify-content-center gap-3">
-          <router-link to="/register" class="btn btn-primary btn-lg" v-if="!isAuthenticated">
-            Get Started
-          </router-link>
-          <router-link to="/elections" class="btn btn-success btn-lg" v-if="isAuthenticated">
-            View Elections
-          </router-link>
-          <MetaMaskButton v-if="!isAuthenticated" @connected="handleMetaMaskConnect" />
+    <section class="hero-section mb-5">
+      <div class="row align-items-center">
+        <div class="col-lg-6">
+          <h1 class="display-4 fw-bold mb-3">
+            Secure Elections with Blockchain Technology
+          </h1>
+          <p class="lead mb-4">
+            TrustVote delivers trustless voting using Ethereum smart contracts for transparent,
+            tamper-proof elections with real-time results.
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <router-link to="/register" class="btn btn-primary btn-lg me-2">
+              <i class="fas fa-user-plus me-2"></i>
+              Register to Vote
+            </router-link>
+            <router-link to="/elections" class="btn btn-outline-primary btn-lg">
+              <i class="fas fa-list me-2"></i>
+              View Elections
+            </router-link>
+          </div>
+        </div>
+        <div class="col-lg-6 mt-5 mt-lg-0">
+          <div class="blockchain-visual p-4 text-center">
+            <div class="blockchain-animation">
+              <i class="fas fa-cubes fa-5x text-primary mb-3"></i>
+            </div>
+            <div class="blockchain-tagline">
+              <h3 class="mb-3">Blockchain-Powered Voting</h3>
+              <p class="mb-0">End-to-end verifiable elections</p>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-
+    </section>
+    
     <!-- Features Section -->
-    <div class="container mb-5">
-      <h2 class="text-center mb-5">Why Choose TrustVote?</h2>
-      <div class="row g-4">
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-body text-center">
-              <div class="feature-icon mb-3">
-                <i class="fas fa-shield-alt fa-3x text-primary"></i>
-              </div>
-              <h4>Secure</h4>
-              <p>Your vote is securely recorded on the Ethereum blockchain, making it tamper-proof.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-body text-center">
-              <div class="feature-icon mb-3">
-                <i class="fas fa-eye fa-3x text-primary"></i>
-              </div>
-              <h4>Transparent</h4>
-              <p>All votes are publicly verifiable while maintaining voter privacy.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-body text-center">
-              <div class="feature-icon mb-3">
-                <i class="fas fa-tachometer-alt fa-3x text-primary"></i>
-              </div>
-              <h4>Efficient</h4>
-              <p>Real-time results, no counting delays, and immediate verification.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- How It Works Section -->
-    <div class="container mb-5">
-      <h2 class="text-center mb-5">How It Works</h2>
+    <section class="features-section mb-5">
+      <h2 class="section-title mb-4">Key Features</h2>
       <div class="row">
-        <div class="col-lg-8 mx-auto">
-          <div class="timeline">
-            <div class="timeline-item">
-              <div class="timeline-number">1</div>
-              <div class="timeline-content">
-                <h5>Register & Connect MetaMask</h5>
-                <p>Create an account and connect your MetaMask wallet to verify your identity.</p>
+        <div class="col-md-4 mb-4">
+          <div class="feature-card card h-100">
+            <div class="card-body">
+              <div class="feature-icon mb-3">
+                <i class="fas fa-shield-alt fa-2x text-primary"></i>
               </div>
+              <h3 class="card-title h5">Secure Authentication</h3>
+              <p class="card-text">
+                Login with MetaMask wallet for secure, blockchain-based authentication.
+              </p>
             </div>
-            <div class="timeline-item">
-              <div class="timeline-number">2</div>
-              <div class="timeline-content">
-                <h5>Browse Active Elections</h5>
-                <p>View all available elections and read about the candidates.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="feature-card card h-100">
+            <div class="card-body">
+              <div class="feature-icon mb-3">
+                <i class="fas fa-check-double fa-2x text-primary"></i>
               </div>
+              <h3 class="card-title h5">Tamper-Proof Voting</h3>
+              <p class="card-text">
+                Votes are recorded on the Ethereum blockchain, making them immutable and verifiable.
+              </p>
             </div>
-            <div class="timeline-item">
-              <div class="timeline-number">3</div>
-              <div class="timeline-content">
-                <h5>Cast Your Vote</h5>
-                <p>Select your preferred candidate and confirm your vote through MetaMask.</p>
+          </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+          <div class="feature-card card h-100">
+            <div class="card-body">
+              <div class="feature-icon mb-3">
+                <i class="fas fa-chart-pie fa-2x text-primary"></i>
               </div>
-            </div>
-            <div class="timeline-item">
-              <div class="timeline-number">4</div>
-              <div class="timeline-content">
-                <h5>Verify & Track</h5>
-                <p>Receive confirmation of your vote on the blockchain and view the results.</p>
-              </div>
+              <h3 class="card-title h5">Real-Time Results</h3>
+              <p class="card-text">
+                View election results in real-time once voting has ended, directly from the blockchain.
+              </p>
             </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Latest Elections Section -->
-    <div class="container mb-5" v-if="latestElections.length > 0">
-      <h2 class="text-center mb-4">Latest Elections</h2>
-      <div class="row row-cols-1 row-cols-md-3 g-4">
-        <div v-for="election in latestElections" :key="election.electionId" class="col">
-          <ElectionCard :election="election" @vote="goToElection" />
+    </section>
+    
+    <!-- How It Works Section -->
+    <section class="how-it-works-section mb-5">
+      <h2 class="section-title mb-4">How It Works</h2>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-icon">
+            <i class="fas fa-user-plus"></i>
+          </div>
+          <div class="timeline-content">
+            <h3>Register & Connect Wallet</h3>
+            <p>
+              Create an account and connect your MetaMask wallet to verify your identity.
+            </p>
+          </div>
+        </div>
+        
+        <div class="timeline-item">
+          <div class="timeline-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="timeline-content">
+            <h3>Get Whitelisted</h3>
+            <p>
+              Admins verify your eligibility and whitelist your Ethereum address to vote.
+            </p>
+          </div>
+        </div>
+        
+        <div class="timeline-item">
+          <div class="timeline-icon">
+            <i class="fas fa-vote-yea"></i>
+          </div>
+          <div class="timeline-content">
+            <h3>Cast Your Vote</h3>
+            <p>
+              Browse active elections, review candidates, and cast your vote securely.
+            </p>
+          </div>
+        </div>
+        
+        <div class="timeline-item">
+          <div class="timeline-icon">
+            <i class="fas fa-chart-bar"></i>
+          </div>
+          <div class="timeline-content">
+            <h3>View Results</h3>
+            <p>
+              Once voting has ended, view the transparent, blockchain-verified results.
+            </p>
+          </div>
         </div>
       </div>
-      <div class="text-center mt-4">
-        <router-link to="/elections" class="btn btn-outline-primary">
-          View All Elections
-        </router-link>
+    </section>
+    
+    <!-- MetaMask Connection -->
+    <section class="metamask-section mb-5">
+      <h2 class="section-title mb-4">Connect with MetaMask</h2>
+      <div class="row">
+        <div class="col-lg-6 offset-lg-3">
+          <ConnectWallet />
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script>
-import MetaMaskButton from '@/components/MetaMaskButton.vue'
-import ElectionCard from '@/components/ElectionCard.vue'
-import web3Service from '@/services/web3'
-import api from '@/services/api'
+import ConnectWallet from '@/components/ConnectWallet.vue'
 
 export default {
   name: 'Home',
   components: {
-    MetaMaskButton,
-    ElectionCard
-  },
-  data() {
-    return {
-      isAuthenticated: false,
-      latestElections: []
-    }
-  },
-  methods: {
-    async handleMetaMaskConnect(account) {
-      try {
-        // After MetaMask connection, check if user is registered
-        const response = await api.getVoterByAddress(account)
-        if (response.data) {
-          // User exists, redirect to elections page
-          this.$router.push('/elections')
-        } else {
-          // User doesn't exist, redirect to registration
-          this.$router.push('/register')
-        }
-      } catch (error) {
-        console.error('Error checking voter:', error)
-        // If error, likely user not found - redirect to registration
-        this.$router.push('/register')
-      }
-    },
-    goToElection(election) {
-      this.$router.push({ name: 'election-detail', params: { id: election.electionId }})
-    },
-    async fetchLatestElections() {
-      try {
-        const response = await api.getElections({ limit: 3, status: 'active' })
-        this.latestElections = response.data
-      } catch (error) {
-        console.error('Error fetching latest elections:', error)
-      }
-    }
-  },
-  async mounted() {
-    this.isAuthenticated = await web3Service.isAuthenticated()
-    this.fetchLatestElections()
+    ConnectWallet
   }
 }
 </script>
 
 <style scoped>
 .hero-section {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
-  padding: 80px 0;
-  border-radius: 0 0 50px 50px;
+  padding: 40px 0;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  padding: 30px;
+}
+
+.section-title {
+  position: relative;
+  padding-bottom: 15px;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.section-title:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 3px;
+  background-color: #6c63ff;
+}
+
+.feature-card {
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  border: none;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
 }
 
 .feature-icon {
-  height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
+  width: 60px;
+  height: 60px;
+  line-height: 60px;
+  text-align: center;
+  border-radius: 50%;
+  background-color: rgba(108, 99, 255, 0.1);
 }
 
+.blockchain-visual {
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.blockchain-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Timeline Styling */
 .timeline {
   position: relative;
-  padding-left: 40px;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 .timeline:before {
   content: '';
   position: absolute;
-  left: 20px;
   top: 0;
-  height: 100%;
-  width: 2px;
-  background: var(--primary-color);
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  background: #e9ecef;
+  transform: translateX(-50%);
 }
 
 .timeline-item {
-  margin-bottom: 30px;
+  display: flex;
+  margin-bottom: 40px;
   position: relative;
 }
 
-.timeline-number {
-  position: absolute;
-  left: -40px;
-  width: 40px;
-  height: 40px;
-  background: var(--primary-color);
-  color: white;
+.timeline-item:nth-child(even) {
+  flex-direction: row-reverse;
+}
+
+.timeline-icon {
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
+  background: #6c63ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  color: white;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
 }
 
 .timeline-content {
+  width: 45%;
   padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: white;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.timeline-item:nth-child(odd) .timeline-content {
+  margin-right: 55%;
+}
+
+.timeline-item:nth-child(even) .timeline-content {
+  margin-left: 55%;
+}
+
+@media (max-width: 767px) {
+  .timeline:before {
+    left: 20px;
+  }
+  
+  .timeline-item,
+  .timeline-item:nth-child(even) {
+    flex-direction: row;
+  }
+  
+  .timeline-icon {
+    left: 20px;
+    transform: none;
+  }
+  
+  .timeline-content,
+  .timeline-item:nth-child(odd) .timeline-content,
+  .timeline-item:nth-child(even) .timeline-content {
+    width: calc(100% - 60px);
+    margin-left: 60px;
+    margin-right: 0;
+  }
 }
 </style>
