@@ -382,8 +382,7 @@ export default {
       this.isLoadingHistory = true
       
       try {
-        // In a real implementation, we would fetch the user's voting history
-        // For now, use mock data
+        // Get the user's voting history from the API
         const response = await api.getUserVotes()
         this.votingHistory = response.data
       } catch (error) {
