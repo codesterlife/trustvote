@@ -56,6 +56,15 @@ const api = {
     return apiClient.post('/auth/update-wallet/', walletData)
   },
   
+  // User Profile
+  updateProfile(userData) {
+    return apiClient.put('/auth/user/profile/', userData)
+  },
+  
+  getUserVotes() {
+    return apiClient.get('/auth/user/votes/')
+  },
+  
   // Elections
   getElections() {
     return apiClient.get('/elections/')

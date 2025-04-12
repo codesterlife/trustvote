@@ -18,6 +18,11 @@
           <li class="nav-item" v-if="isLoggedIn">
             <router-link class="nav-link" to="/elections">Elections</router-link>
           </li>
+          <li class="nav-item" v-if="isLoggedIn">
+            <router-link class="nav-link" to="/profile">
+              <i class="fas fa-user-circle me-1"></i>Profile
+            </router-link>
+          </li>
           <li class="nav-item" v-if="isAdmin">
             <router-link class="nav-link" to="/admin">Admin Dashboard</router-link>
           </li>

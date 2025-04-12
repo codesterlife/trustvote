@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
 import Register from '@/views/Register.vue'
 import Login from '@/views/Login.vue'
+import UserProfile from '@/views/UserProfile.vue'
 import Elections from '@/views/Elections.vue'
 import ElectionDetail from '@/views/ElectionDetail.vue'
 import VotingPage from '@/views/VotingPage.vue'
@@ -28,6 +29,12 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login
+  },
+  {
+    path: '/profile',
+    name: 'UserProfile',
+    component: UserProfile,
+    meta: { requiresAuth: true }
   },
   {
     path: '/elections',
