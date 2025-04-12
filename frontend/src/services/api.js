@@ -1,138 +1,158 @@
-import axios from 'axios';
+import axios from 'axios'
 
-// Base URL for API calls
-const API_URL = 'http://localhost:8000/api/';
+const API_URL = 'http://localhost:8000/api'
 
-// Create axios instance
+// Create a configured axios instance
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
-});
+})
 
-// Add token to requests if it exists
-apiClient.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add a request interceptor to include auth token
+apiClient.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
+    return config
+  },
+  error => {
+    return Promise.reject(error)
   }
-  return config;
-});
+)
+
+// Authentication services
+const auth = {
+  login(credentials) {
+    return apiClient.post('/auth/login/', credentials)
+  },
+  register(userData) {
+    return apiClient.post('/auth/register/', userData)
+  },
+  verifyToken(token) {
+    return apiClient.post('/auth/verify-token/', { token })
+  }
+}
+
+// Voter services
+const voters = {
+  getVoters() {
+    return apiClient.get('/voters/')
+  },
+  getVoter(id) {
+    return apiClient.get(`/voters/${id}/`)
+  },
+  getVoterByAddress(address) {
+    return apiClient.get(`/voters/by-address/${address}/`)
+  },
+  getPendingVoters() {
+    return apiClient.get('/voters/pending/')
+  },
+  registerVoter(data) {
+    return apiClient.post('/voters/', data)
+  },
+  updateVoterStatus(id, status) {
+    return apiClient.patch(`/voters/${id}/status/`, { status })
+  },
+  verifyVoter(address) {
+    return apiClient.post('/voters/verify/', { wallet_address: address })
+  },
+  getVoterVotes(id) {
+    return apiClient.get(`/voters/${id}/votes/`)
+  }
+}
+
+// Election services
+const elections = {
+  getElections(params) {
+    return apiClient.get('/elections/', { params })
+  },
+  getElection(id) {
+    return apiClient.get(`/elections/${id}/`)
+  },
+  createElection(data) {
+    return apiClient.post('/elections/', data)
+  },
+  updateElection(id, data) {
+    return apiClient.put(`/elections/${id}/`, data)
+  },
+  deleteElection(id) {
+    return apiClient.delete(`/elections/${id}/`)
+  },
+  updateElectionPhase(id, phase) {
+    return apiClient.patch(`/elections/${id}/phase/`, { status: phase })
+  },
+  getElectionStats(id) {
+    return apiClient.get(`/elections/${id}/stats/`)
+  }
+}
+
+// Candidate services
+const candidates = {
+  getCandidates() {
+    return apiClient.get('/candidates/')
+  },
+  getCandidate(id) {
+    return apiClient.get(`/candidates/${id}/`)
+  },
+  getCandidatesByElection(electionId) {
+    return apiClient.get(`/candidates/election/${electionId}/`)
+  },
+  getCandidatesByPosition(electionId, positionId) {
+    return apiClient.get(`/candidates/election/${electionId}/position/${positionId}/`)
+  },
+  createCandidate(data) {
+    return apiClient.post('/candidates/', data)
+  },
+  updateCandidate(id, data) {
+    return apiClient.put(`/candidates/${id}/`, data)
+  },
+  deleteCandidate(id) {
+    return apiClient.delete(`/candidates/${id}/`)
+  }
+}
+
+// Vote services
+const votes = {
+  recordVote(data) {
+    return apiClient.post('/votes/', data)
+  },
+  getVotesByElection(electionId) {
+    return apiClient.get(`/votes/election/${electionId}/`)
+  },
+  getVotesByPosition(electionId, positionId) {
+    return apiClient.get(`/votes/election/${electionId}/position/${positionId}/`)
+  },
+  getVoterHasVoted(electionId, positionId, walletAddress) {
+    return apiClient.get(
+      `/votes/check-vote/?election_id=${electionId}&position_id=${positionId}&wallet_address=${walletAddress}`
+    )
+  }
+}
+
+// Admin services
+const admin = {
+  getAdminStats() {
+    return apiClient.get('/admin/stats/')
+  },
+  getDashboardData() {
+    return apiClient.get('/admin/dashboard/')
+  }
+}
 
 export default {
-  // Auth
-  login(credentials) {
-    return apiClient.post('auth/login/', credentials);
-  },
+  // Re-export all service groups
+  ...auth,
+  ...voters,
+  ...elections,
+  ...candidates,
+  ...votes,
+  ...admin,
   
-  register(userData) {
-    return apiClient.post('register/', userData);
-  },
-  
-  getUserInfo() {
-    return apiClient.get('auth/user/');
-  },
-  
-  // Voter
-  getVoterStatus() {
-    return apiClient.get('voter-status/');
-  },
-  
-  connectWallet(walletAddress) {
-    return apiClient.post('connect-wallet/', { wallet_address: walletAddress });
-  },
-  
-  // Elections
-  getElections() {
-    return apiClient.get('elections/');
-  },
-  
-  getElection(id) {
-    return apiClient.get(`elections/${id}/`);
-  },
-  
-  createElection(electionData) {
-    return apiClient.post('elections/', electionData);
-  },
-  
-  updateElection(id, electionData) {
-    return apiClient.put(`elections/${id}/`, electionData);
-  },
-  
-  updateElectionStatus(id, status) {
-    return apiClient.post(`update-election-status/${id}/`, { status });
-  },
-  
-  getActiveElections() {
-    return apiClient.get('active-elections/');
-  },
-  
-  // Positions
-  getPositions(electionId) {
-    return apiClient.get(`positions/?election=${electionId}`);
-  },
-  
-  createPosition(positionData) {
-    return apiClient.post('positions/', positionData);
-  },
-  
-  updatePosition(id, positionData) {
-    return apiClient.put(`positions/${id}/`, positionData);
-  },
-  
-  // Candidates
-  getCandidates(filter = {}) {
-    let url = 'candidates/';
-    const params = new URLSearchParams();
-    
-    if (filter.election) {
-      params.append('election', filter.election);
-    }
-    
-    if (filter.position) {
-      params.append('position', filter.position);
-    }
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-    
-    return apiClient.get(url);
-  },
-  
-  createCandidate(candidateData) {
-    return apiClient.post('candidates/', candidateData);
-  },
-  
-  updateCandidate(id, candidateData) {
-    return apiClient.put(`candidates/${id}/`, candidateData);
-  },
-  
-  // Parties
-  getParties() {
-    return apiClient.get('parties/');
-  },
-  
-  createParty(partyData) {
-    return apiClient.post('parties/', partyData);
-  },
-  
-  // Votes
-  castVote(voteData) {
-    return apiClient.post('votes/', voteData);
-  },
-  
-  getElectionResults(electionId) {
-    return apiClient.get(`election-results/${electionId}/`);
-  },
-  
-  // Voters (admin)
-  getVoters() {
-    return apiClient.get('voters/');
-  },
-  
-  whitelistVoter(voterId) {
-    return apiClient.post(`whitelist-voter/${voterId}/`);
-  }
-};
+  // Export the axios instance for direct use if needed
+  apiClient
+}

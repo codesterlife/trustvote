@@ -1,179 +1,92 @@
 <template>
   <div id="app">
-    <NavBar />
-    <div class="container mt-4">
-      <router-view />
+    <Navbar />
+    <div class="container mt-4 mb-5 pb-5">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </div>
-    <footer class="mt-5 py-3 text-center text-muted border-top">
-      <div class="container">
-        <p>&copy; 2023 TrustVote - Blockchain-Enhanced Voting System</p>
-      </div>
-    </footer>
+    <Footer />
   </div>
 </template>
 
 <script>
-import NavBar from '@/components/NavBar.vue';
+import Navbar from '@/components/Navbar.vue'
+import Footer from '@/components/Footer.vue'
 
 export default {
   name: 'App',
   components: {
-    NavBar
-  },
-  created() {
-    // Check if user is already logged in
-    this.checkAuthentication();
-  },
-  methods: {
-    checkAuthentication() {
-      // If there's a token in localStorage, try to load user data
-      const token = localStorage.getItem('token');
-      if (token) {
-        this.$store.dispatch('fetchUserData');
-      }
-    }
+    Navbar,
+    Footer
   }
-};
+}
 </script>
 
 <style>
-#app {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
 }
 
-.container {
-  flex: 1;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.btn-success {
+  background-color: var(--secondary-color);
+  border-color: var(--secondary-color);
+}
+
+.btn-metamask {
+  background-color: #F6851B;
+  border-color: #F6851B;
+  color: white;
+}
+
+.btn-metamask:hover {
+  background-color: #E2761B;
+  border-color: #E2761B;
+  color: white;
+}
+
+.badge-init {
+  background-color: #6c757d;
+}
+
+.badge-voting {
+  background-color: var(--secondary-color);
+}
+
+.badge-closed {
+  background-color: var(--dark-color);
 }
 
 .card {
-  transition: transform 0.3s, box-shadow 0.3s;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
 }
 
 .card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-.btn-primary {
-  background-color: #4285f4;
-  border-color: #4285f4;
-}
-
-.btn-primary:hover {
-  background-color: #2b6def;
-  border-color: #2b6def;
-}
-
-.btn-success {
-  background-color: #0f9d58;
-  border-color: #0f9d58;
-}
-
-.btn-success:hover {
-  background-color: #0c8148;
-  border-color: #0c8148;
-}
-
-.blockchain-confirmed {
-  background-color: #e6f7ff;
-  border-left: 4px solid #1890ff;
-  padding: 10px;
-  margin: 10px 0;
-}
-
-.metamask-button {
-  display: inline-flex;
-  align-items: center;
-  background-color: #f6851b;
+.card-header {
+  border-radius: 10px 10px 0 0 !important;
+  background-color: var(--primary-color);
   color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 5px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s;
 }
 
-.metamask-button:hover {
-  background-color: #e2761b;
-}
-
-.transaction-status {
-  padding: 10px;
-  border-radius: 5px;
-  margin: 10px 0;
-}
-
-.transaction-pending {
-  background-color: #fff7e6;
-  border: 1px solid #ffd591;
-}
-
-.transaction-confirmed {
-  background-color: #f6ffed;
-  border: 1px solid #b7eb8f;
-}
-
-.transaction-failed {
-  background-color: #fff1f0;
-  border: 1px solid #ffa39e;
-}
-
-.loader {
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #3498db;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  animation: spin 2s linear infinite;
-  display: inline-block;
-  margin-right: 10px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.vote-confirmation {
-  animation: fadeInUp 0.5s;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.phase-indicator {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 0.8rem;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.phase-init {
-  background-color: #e6f7ff;
-  color: #1890ff;
-}
-
-.phase-voting {
-  background-color: #f6ffed;
-  color: #52c41a;
-}
-
-.phase-closed {
-  background-color: #f5f5f5;
-  color: #595959;
+.form-control:focus, .btn:focus {
+  box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
 }
 </style>

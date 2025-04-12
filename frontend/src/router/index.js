@@ -1,118 +1,130 @@
-import Vue from 'vue';
-import VueRouter from 'vue-router';
-import Home from '../views/Home.vue';
-import Login from '../views/Login.vue';
-import Register from '../views/Register.vue';
-import Election from '../views/Election.vue';
-import VotingBooth from '../views/VotingBooth.vue';
-import Results from '../views/Results.vue';
-import Dashboard from '../views/admin/Dashboard.vue';
-import AdminElections from '../views/admin/Elections.vue';
-import AdminCandidates from '../views/admin/Candidates.vue';
-import AdminVoters from '../views/admin/Voters.vue';
-import AdminResults from '../views/admin/Results.vue';
-import ElectionForm from '../views/admin/ElectionForm.vue';
-import CandidateForm from '../views/admin/CandidateForm.vue';
+import { createRouter, createWebHistory } from 'vue-router'
+import web3Service from '@/services/web3'
 
-Vue.use(VueRouter);
+// Views
+import Home from '@/views/Home.vue'
+import Register from '@/views/Register.vue'
+import Login from '@/views/Login.vue'
+import Elections from '@/views/Elections.vue'
+import ElectionDetail from '@/views/ElectionDetail.vue'
+import VotingBooth from '@/views/VotingBooth.vue'
+import Results from '@/views/Results.vue'
+
+// Admin views
+import AdminDashboard from '@/views/Admin/Dashboard.vue'
+import ManageElections from '@/views/Admin/ManageElections.vue'
+import ManageCandidates from '@/views/Admin/ManageCandidates.vue'
+import ManageVoters from '@/views/Admin/ManageVoters.vue'
+import ViewResults from '@/views/Admin/ViewResults.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
+    name: 'home',
     component: Home
   },
   {
-    path: '/login',
-    name: 'Login',
-    component: Login
-  },
-  {
     path: '/register',
-    name: 'Register',
+    name: 'register',
     component: Register
   },
   {
+    path: '/login',
+    name: 'login',
+    component: Login
+  },
+  {
+    path: '/elections',
+    name: 'elections',
+    component: Elections,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/election/:id',
-    name: 'Election',
-    component: Election,
-    props: true,
+    name: 'election-detail',
+    component: ElectionDetail,
     meta: { requiresAuth: true }
   },
   {
     path: '/vote/:electionId/:positionId',
-    name: 'VotingBooth',
+    name: 'voting-booth',
     component: VotingBooth,
-    props: true,
     meta: { requiresAuth: true }
   },
   {
     path: '/results/:id',
-    name: 'Results',
+    name: 'results',
     component: Results,
-    props: true,
     meta: { requiresAuth: true }
   },
   {
     path: '/admin',
-    name: 'Dashboard',
-    component: Dashboard,
-    meta: { requiresAuth: true, requiresAdmin: true },
-    children: [
-      {
-        path: 'elections',
-        name: 'AdminElections',
-        component: AdminElections
-      },
-      {
-        path: 'candidates',
-        name: 'AdminCandidates',
-        component: AdminCandidates
-      },
-      {
-        path: 'voters',
-        name: 'AdminVoters',
-        component: AdminVoters
-      },
-      {
-        path: 'results',
-        name: 'AdminResults',
-        component: AdminResults
-      }
-    ]
-  },
-  {
-    path: '/admin/election/create',
-    name: 'CreateElection',
-    component: ElectionForm,
+    name: 'admin-dashboard',
+    component: AdminDashboard,
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/admin/election/:id/edit',
-    name: 'EditElection',
-    component: ElectionForm,
-    props: true,
+    path: '/admin/elections',
+    name: 'manage-elections',
+    component: ManageElections,
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/admin/candidate/create',
-    name: 'CreateCandidate',
-    component: CandidateForm,
+    path: '/admin/candidates',
+    name: 'manage-candidates',
+    component: ManageCandidates,
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/admin/candidate/:id/edit',
-    name: 'EditCandidate',
-    component: CandidateForm,
-    props: true,
+    path: '/admin/voters',
+    name: 'manage-voters',
+    component: ManageVoters,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/results',
+    name: 'view-results',
+    component: ViewResults,
     meta: { requiresAuth: true, requiresAdmin: true }
   }
-];
+]
 
-const router = new VueRouter({
-  mode: 'history',
-  base: process.env.BASE_URL,
-  routes
-});
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  linkActiveClass: 'active'
+})
 
-export default router;
+// Navigation guard
+router.beforeEach(async (to, from, next) => {
+  // Check if route requires authentication
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    // Check if user is connected to MetaMask
+    if (!web3Service.isConnected()) {
+      next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
+    
+    // Check if user is authenticated
+    const isAuthenticated = await web3Service.isAuthenticated()
+    if (!isAuthenticated) {
+      next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
+    
+    // Check if route requires admin role
+    if (to.matched.some(record => record.meta.requiresAdmin)) {
+      const isAdmin = await web3Service.isAdmin()
+      if (!isAdmin) {
+        next({ name: 'elections' })
+        return
+      }
+    }
+    
+    next()
+  } else {
+    next()
+  }
+})
+
+export default router

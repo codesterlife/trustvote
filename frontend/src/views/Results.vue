@@ -1,276 +1,339 @@
 <template>
-  <div class="election-results">
-    <div v-if="loading" class="text-center py-5">
+  <div class="results-page">
+    <div v-if="isLoading" class="text-center my-5">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
       <p class="mt-3">Loading election results...</p>
     </div>
     
-    <div v-else-if="!election" class="alert alert-danger">
-      Election not found or unable to load results.
-    </div>
-    
-    <div v-else-if="election.status !== 'closed' && !isAdmin" class="results-unavailable text-center py-5">
-      <i class="bi bi-lock-fill results-locked-icon"></i>
-      <h3 class="mt-3">Results Not Available Yet</h3>
-      <p>Election results will be available once the election has concluded.</p>
-      <div class="mt-4">
-        <router-link :to="{ name: 'Election', params: { id: election.id } }" class="btn btn-primary">
-          Return to Election Details
-        </router-link>
+    <div v-else-if="!election" class="text-center my-5">
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Election not found
       </div>
+      <router-link to="/elections" class="btn btn-primary mt-3">
+        Back to Elections
+      </router-link>
     </div>
     
     <div v-else>
-      <div class="results-header mb-4">
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <h1 class="mb-2">Election Results</h1>
-            <h3 class="election-title mb-3">{{ election.title }}</h3>
-            <div class="election-meta">
-              <span v-if="election.status === 'closed'" class="badge bg-secondary me-2">
-                <i class="bi bi-check-circle-fill me-1"></i> Election Closed
-              </span>
-              <span class="text-muted">
-                {{ formatDateRange(election.start_time, election.end_time) }}
-              </span>
+      <!-- Election Header -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="mb-0">{{ election.title }} - Results</h1>
+            <span class="badge rounded-pill badge-closed">
+              {{ election.status }}
+            </span>
+          </div>
+          
+          <p class="lead">{{ election.description }}</p>
+          
+          <div class="d-flex align-items-center text-muted">
+            <i class="fas fa-clock me-2"></i>
+            <span>
+              Election ended on {{ formatDate(election.endTime) }}
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Tabs -->
+      <ul class="nav nav-tabs mb-4">
+        <li class="nav-item" v-for="position in election.positions" :key="position.positionId">
+          <button 
+            class="nav-link" 
+            :class="{ active: activeTab === position.positionId }"
+            @click="activeTab = position.positionId">
+            {{ position.title }}
+          </button>
+        </li>
+      </ul>
+      
+      <!-- Results Content -->
+      <div v-for="position in election.positions" :key="position.positionId">
+        <div v-if="activeTab === position.positionId">
+          <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+              <h4 class="mb-0">{{ position.title }} - Results</h4>
+            </div>
+            <div class="card-body">
+              <div v-if="getWinnerForPosition(position.positionId)" class="winner-section mb-4">
+                <div class="alert alert-success">
+                  <div class="d-flex align-items-center">
+                    <div class="winner-badge me-3">
+                      <i class="fas fa-trophy"></i>
+                    </div>
+                    <div>
+                      <h5 class="mb-1">Winner</h5>
+                      <strong>{{ getWinnerForPosition(position.positionId).name }}</strong>
+                      <div class="text-muted small">
+                        {{ getWinnerForPosition(position.positionId).voteCount }} votes
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Candidates Results -->
+              <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                <div v-for="candidateId in position.candidates" :key="candidateId" class="col">
+                  <CandidateCard 
+                    :candidate="getCandidateWithVotes(candidateId)" 
+                    :parties="election.parties" 
+                    :selectable="false" 
+                    :showResults="true"
+                    :totalVotes="getTotalVotesForPosition(position.positionId)" />
+                </div>
+              </div>
             </div>
           </div>
           
-          <div v-if="election.contract_address" class="blockchain-badge">
-            <i class="bi bi-link-45deg"></i>
-            Results from Blockchain
-            <a :href="'https://etherscan.io/address/' + election.contract_address" 
-               target="_blank"
-               class="ms-1 contract-link">
-              {{ shortenAddress(election.contract_address) }}
-              <i class="bi bi-box-arrow-up-right"></i>
-            </a>
-          </div>
-        </div>
-      </div>
-      
-      <div v-if="results.length === 0" class="no-results text-center py-5">
-        <p class="mb-0">No results available for this election.</p>
-      </div>
-      
-      <div v-else>
-        <div class="mb-4 results-summary card">
-          <div class="card-body">
-            <h4 class="card-title">Election Summary</h4>
-            <div class="row mt-3">
-              <div class="col-md-4">
-                <div class="summary-item">
-                  <div class="summary-value">{{ positions.length }}</div>
-                  <div class="summary-label">Positions</div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="summary-item">
-                  <div class="summary-value">{{ totalCandidates }}</div>
-                  <div class="summary-label">Candidates</div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="summary-item">
-                  <div class="summary-value">{{ totalVotes }}</div>
-                  <div class="summary-label">Total Votes Cast</div>
-                </div>
+          <!-- Results Chart -->
+          <div class="card">
+            <div class="card-header bg-light">
+              <h5 class="mb-0">Vote Distribution</h5>
+            </div>
+            <div class="card-body">
+              <div class="chart-container">
+                <canvas :id="`chart-position-${position.positionId}`"></canvas>
               </div>
             </div>
           </div>
         </div>
-        
-        <div class="mb-5">
-          <div v-for="position in results" :key="position.position_id" class="mb-4">
-            <ResultsChart 
-              :positionTitle="getPositionTitle(position.position_id)" 
-              :results="position.candidates" 
-            />
-          </div>
+      </div>
+      
+      <div class="text-center mt-4">
+        <div class="alert alert-info d-inline-block">
+          <i class="fas fa-info-circle me-2"></i>
+          Results are retrieved directly from the blockchain
         </div>
-        
-        <div class="mt-5 text-center">
-          <router-link :to="{ name: 'Election', params: { id: election.id } }" class="btn btn-outline-primary me-3">
-            Back to Election Details
-          </router-link>
-          <router-link :to="{ name: 'Home' }" class="btn btn-outline-secondary">
-            View All Elections
-          </router-link>
-        </div>
+      </div>
+      
+      <div class="text-center mt-4">
+        <router-link to="/elections" class="btn btn-primary">
+          Back to Elections
+        </router-link>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
-import apiService from '@/services/api';
-import web3Service from '@/services/web3';
-import ResultsChart from '@/components/ResultsChart.vue';
+import CandidateCard from '@/components/CandidateCard.vue'
+import api from '@/services/api'
+import contractService from '@/contracts/index'
+import Chart from 'chart.js/auto'
 
 export default {
   name: 'Results',
   components: {
-    ResultsChart
-  },
-  props: {
-    id: {
-      type: [Number, String],
-      required: true
-    }
+    CandidateCard
   },
   data() {
     return {
-      loading: true,
       election: null,
-      positions: [],
-      results: []
-    };
-  },
-  computed: {
-    ...mapGetters([
-      'isAuthenticated',
-      'isAdmin'
-    ]),
-    totalCandidates() {
-      return this.results.reduce((total, position) => total + position.candidates.length, 0);
-    },
-    totalVotes() {
-      return this.results.reduce((total, position) => {
-        return total + position.candidates.reduce((votes, candidate) => votes + candidate.vote_count, 0);
-      }, 0);
+      candidates: [],
+      results: {},
+      isLoading: true,
+      activeTab: null,
+      charts: {}
     }
-  },
-  async created() {
-    await this.fetchResultsData();
   },
   methods: {
-    async fetchResultsData() {
-      this.loading = true;
+    async fetchElectionResults() {
       try {
-        // Load election details
-        const electionResponse = await apiService.getElection(this.id);
-        this.election = electionResponse.data;
+        this.isLoading = true
+        const electionId = this.$route.params.id
         
-        // Load positions
-        const positionsResponse = await apiService.getPositions(this.id);
-        this.positions = positionsResponse.data;
+        // Fetch election details
+        const electionResponse = await api.getElection(electionId)
+        this.election = electionResponse.data
         
-        // If election is closed or user is admin, fetch results
-        if (this.election.status === 'closed' || this.isAdmin) {
-          const resultsResponse = await apiService.getElectionResults(this.id);
-          this.results = resultsResponse.data.results;
+        // Fetch all candidates for this election
+        const candidatesResponse = await api.getCandidatesByElection(electionId)
+        this.candidates = candidatesResponse.data
+        
+        // Fetch results from blockchain
+        for (const position of this.election.positions) {
+          const positionResults = await contractService.getResults(
+            this.election.electionId,
+            position.positionId
+          )
+          
+          this.results[position.positionId] = positionResults
+          
+          // Apply vote counts to candidates
+          for (let candidate of this.candidates) {
+            if (position.candidates.includes(candidate.candidateId)) {
+              const votes = positionResults.votes.find(
+                v => v.candidateId === candidate.candidateId
+              )
+              candidate.voteCount = votes ? votes.count : 0
+            }
+          }
+        }
+        
+        // Set default active tab to first position
+        if (this.election.positions && this.election.positions.length > 0) {
+          this.activeTab = this.election.positions[0].positionId
         }
       } catch (error) {
-        console.error('Error fetching results data:', error);
-        this.$store.commit('setNotification', {
-          message: 'Failed to load election results',
-          type: 'danger'
-        });
+        console.error('Error fetching election results:', error)
+        // Handle error - show notification
       } finally {
-        this.loading = false;
+        this.isLoading = false
+        this.$nextTick(() => {
+          this.initCharts()
+        })
       }
     },
-    getPositionTitle(positionId) {
-      const position = this.positions.find(p => p.id === positionId);
-      return position ? position.title : `Position ${positionId}`;
+    getCandidateWithVotes(candidateId) {
+      return this.candidates.find(c => c.candidateId === candidateId) || {}
     },
-    formatDateRange(startDate, endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+    getWinnerForPosition(positionId) {
+      const positionCandidates = this.candidates.filter(c => {
+        return this.election.positions.find(
+          p => p.positionId === positionId && p.candidates.includes(c.candidateId)
+        )
+      })
       
-      // Format date range
-      const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-      return `${start.toLocaleDateString(undefined, dateOptions)} - ${end.toLocaleDateString(undefined, dateOptions)}`;
+      if (positionCandidates.length === 0) return null
+      
+      return positionCandidates.reduce((prev, current) => {
+        return (prev.voteCount > current.voteCount) ? prev : current
+      })
     },
-    shortenAddress(address) {
-      if (!address) return '';
-      return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    getTotalVotesForPosition(positionId) {
+      const positionCandidates = this.candidates.filter(c => {
+        return this.election.positions.find(
+          p => p.positionId === positionId && p.candidates.includes(c.candidateId)
+        )
+      })
+      
+      return positionCandidates.reduce((sum, candidate) => {
+        return sum + (candidate.voteCount || 0)
+      }, 0)
+    },
+    formatDate(dateString) {
+      if (!dateString) return 'N/A'
+      const date = new Date(dateString)
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    },
+    initCharts() {
+      for (const position of this.election.positions) {
+        const positionId = position.positionId
+        const ctx = document.getElementById(`chart-position-${positionId}`)
+        
+        if (!ctx) continue
+        
+        // If a chart already exists for this position, destroy it
+        if (this.charts[positionId]) {
+          this.charts[positionId].destroy()
+        }
+        
+        // Get candidates for this position
+        const positionCandidates = this.candidates.filter(c => {
+          return position.candidates.includes(c.candidateId)
+        })
+        
+        // Create chart data
+        const labels = positionCandidates.map(c => c.name)
+        const data = positionCandidates.map(c => c.voteCount || 0)
+        const backgroundColors = [
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 206, 86, 0.7)',
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(153, 102, 255, 0.7)'
+        ]
+        
+        // Create chart
+        this.charts[positionId] = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Votes',
+              data: data,
+              backgroundColor: backgroundColors,
+              borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0 // Only show integers
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const votes = context.raw
+                    const total = data.reduce((a, b) => a + b, 0)
+                    const percentage = total ? Math.round((votes / total) * 100) : 0
+                    return `${votes} votes (${percentage}%)`
+                  }
+                }
+              }
+            }
+          }
+        })
+      }
     }
+  },
+  mounted() {
+    this.fetchElectionResults()
+  },
+  beforeUnmount() {
+    // Clean up charts when component is destroyed
+    Object.values(this.charts).forEach(chart => {
+      if (chart) chart.destroy()
+    })
   }
-};
+}
 </script>
 
 <style scoped>
-.election-results {
-  margin-top: 2rem;
+.results-page {
+  padding-bottom: 40px;
 }
 
-.results-header {
-  border-bottom: 1px solid #eee;
-  padding-bottom: 1.5rem;
-  margin-bottom: 2rem;
+.chart-container {
+  height: 300px;
+  position: relative;
 }
 
-.election-title {
-  font-weight: 500;
-  color: #333;
-}
-
-.election-meta {
+.winner-badge {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
+  justify-content: center;
+  background-color: #ffc107;
+  color: white;
+  font-size: 1.5rem;
 }
 
-.blockchain-badge {
-  background-color: #e6f7ff;
-  border: 1px solid #91d5ff;
-  border-radius: 20px;
-  padding: 5px 12px;
-  color: #1890ff;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
+.nav-tabs .nav-link {
+  cursor: pointer;
 }
 
-.contract-link {
-  color: #1890ff;
-  text-decoration: none;
-}
-
-.contract-link:hover {
-  text-decoration: underline;
-}
-
-.no-results {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  margin-top: 1rem;
-}
-
-.results-summary {
-  background-color: #f8f9fa;
-  border: none;
-  border-radius: 8px;
-}
-
-.summary-item {
-  text-align: center;
-  padding: 10px;
-}
-
-.summary-value {
-  font-size: 2rem;
-  font-weight: 600;
-  color: #1890ff;
-}
-
-.summary-label {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.results-locked-icon {
-  font-size: 4rem;
-  color: #d9d9d9;
-  margin-bottom: 1rem;
-}
-
-.results-unavailable {
-  background-color: #f9f9f9;
-  border-radius: 10px;
-  padding: 30px;
+.nav-tabs .nav-link.active {
+  font-weight: bold;
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
 }
 </style>

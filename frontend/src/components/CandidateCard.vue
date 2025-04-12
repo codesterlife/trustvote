@@ -1,62 +1,62 @@
 <template>
-  <div class="card candidate-card mb-3">
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-4 text-center mb-3 mb-md-0">
-          <div class="candidate-photo">
-            <img :src="getCandidateImage()" alt="Candidate Photo" class="img-fluid rounded">
-          </div>
-          
-          <div v-if="candidate.party" class="party-badge mt-2" :style="{ background: getPartyColor(candidate.party) }">
-            {{ candidate.party_name }}
-          </div>
+  <div class="card candidate-card h-100">
+    <div class="position-relative">
+      <div class="candidate-img-container">
+        <img :src="candidateImage" class="card-img-top candidate-img" alt="Candidate Photo">
+        <div v-if="candidate.partyId" class="party-badge">
+          <span>{{ getPartyName(candidate.partyId) }}</span>
         </div>
-        
-        <div class="col-md-8">
-          <h5 class="card-title">{{ candidate.name }}</h5>
-          
-          <div v-if="candidate.position_title" class="position-label mb-2">
-            Running for: {{ candidate.position_title }}
-          </div>
-          
-          <div class="candidate-details mb-3">
-            <p v-if="candidate.bio" class="card-text">{{ truncateBio(candidate.bio) }}</p>
-            
-            <div v-if="showManifesto && candidate.manifesto" class="manifesto mt-3">
-              <h6>Manifesto:</h6>
-              <p>{{ candidate.manifesto }}</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h5 class="card-title">{{ candidate.name }}</h5>
+      <p class="card-text text-muted">{{ candidate.bio }}</p>
+      
+      <div class="accordion accordion-flush" :id="`accordionCandidate${candidate.candidateId}`">
+        <div class="accordion-item">
+          <h2 class="accordion-header" :id="`headingManifesto${candidate.candidateId}`">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                   :data-bs-target="`#collapseManifesto${candidate.candidateId}`">
+              Manifesto
+            </button>
+          </h2>
+          <div :id="`collapseManifesto${candidate.candidateId}`" class="accordion-collapse collapse" 
+               :aria-labelledby="`headingManifesto${candidate.candidateId}`">
+            <div class="accordion-body">
+              {{ candidate.manifesto }}
             </div>
           </div>
-          
-          <div class="d-flex justify-content-between">
-            <button v-if="!showManifesto && candidate.manifesto" 
-                   @click="showManifesto = true" 
-                   class="btn btn-sm btn-outline-secondary">
-              Read Manifesto
-            </button>
-            
-            <button v-if="showManifesto" 
-                   @click="showManifesto = false" 
-                   class="btn btn-sm btn-outline-secondary">
-              Hide Manifesto
-            </button>
-            
-            <button v-if="canVote" 
-                   @click="voteForCandidate" 
-                   class="btn btn-success">
-              Vote
-            </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent text-center">
+      <button 
+        v-if="selectable" 
+        @click="selectCandidate" 
+        class="btn btn-primary w-100"
+        :class="{ 'btn-success': isSelected }">
+        <span v-if="isSelected">
+          <i class="fas fa-check me-2"></i>Selected
+        </span>
+        <span v-else>Select Candidate</span>
+      </button>
+      <div v-else-if="showResults" class="text-center">
+        <div class="progress mb-2">
+          <div class="progress-bar" role="progressbar" 
+               :style="`width: ${votePercentage}%`" 
+               :aria-valuenow="votePercentage" 
+               aria-valuemin="0" 
+               aria-valuemax="100">
+            {{ votePercentage }}%
           </div>
         </div>
+        <small class="text-muted">{{ candidate.voteCount || 0 }} votes</small>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
-import candidateImages from '../constants/candidateImages';
-
 export default {
   name: 'CandidateCard',
   props: {
@@ -64,101 +64,97 @@ export default {
       type: Object,
       required: true
     },
-    canVote: {
+    selectable: {
+      type: Boolean,
+      default: false
+    },
+    selected: {
+      type: Boolean,
+      default: false
+    },
+    parties: {
+      type: Array,
+      default: () => []
+    },
+    totalVotes: {
+      type: Number,
+      default: 0
+    },
+    showResults: {
       type: Boolean,
       default: false
     }
   },
-  data() {
-    return {
-      showManifesto: false
-    };
-  },
   computed: {
-    ...mapGetters(['getParties'])
+    isSelected() {
+      return this.selected
+    },
+    candidateImage() {
+      // Using the candidateId to determine which image to show
+      const images = [
+        'https://images.unsplash.com/photo-1516534775068-ba3e7458af70',
+        'https://images.unsplash.com/photo-1503676382389-4809596d5290',
+        'https://images.unsplash.com/photo-1530099486328-e021101a494a',
+        'https://images.unsplash.com/photo-1456406644174-8ddd4cd52a06',
+        'https://images.unsplash.com/photo-1460518451285-97b6aa326961',
+        'https://images.unsplash.com/photo-1494883759339-0b042055a4ee'
+      ]
+      
+      // Use modulo to cycle through the images based on candidateId
+      const index = (this.candidate.candidateId % images.length)
+      return images[index]
+    },
+    votePercentage() {
+      if (!this.totalVotes || !this.candidate.voteCount) return 0
+      return Math.round((this.candidate.voteCount / this.totalVotes) * 100)
+    }
   },
   methods: {
-    truncateBio(bio) {
-      if (bio.length > 150) {
-        return bio.substring(0, 147) + '...';
-      }
-      return bio;
+    selectCandidate() {
+      this.$emit('select', this.candidate)
     },
-    getCandidateImage() {
-      // Use candidate photo_url if available, otherwise use a placeholder
-      if (this.candidate.photo_url) {
-        return this.candidate.photo_url;
-      }
-      
-      // Use index based on candidate ID to select an image
-      const imageIndex = (this.candidate.id % candidateImages.length);
-      return candidateImages[imageIndex];
-    },
-    getPartyColor(partyId) {
-      const colors = [
-        '#4285f4', // Blue
-        '#34a853', // Green
-        '#fbbc05', // Yellow
-        '#ea4335', // Red
-        '#673ab7', // Purple
-        '#ff9800'  // Orange
-      ];
-      
-      // Use party ID to select a color
-      return colors[partyId % colors.length];
-    },
-    voteForCandidate() {
-      this.$emit('vote', this.candidate.id);
+    getPartyName(partyId) {
+      const party = this.parties.find(p => p.partyId === partyId)
+      return party ? party.name : 'Independent'
     }
   }
-};
+}
 </script>
 
 <style scoped>
 .candidate-card {
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  overflow: hidden;
+  transition: transform 0.2s ease-in-out;
 }
 
 .candidate-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-5px);
 }
 
-.candidate-photo {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto;
-  border-radius: 60px;
+.candidate-img-container {
+  position: relative;
+  height: 200px;
   overflow: hidden;
 }
 
-.candidate-photo img {
+.candidate-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .party-badge {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 0.8rem;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.7);
   color: white;
-  font-weight: bold;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  border-top-left-radius: 5px;
 }
 
-.position-label {
-  color: #555;
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.manifesto {
-  background-color: #f9f9f9;
-  padding: 10px;
+.progress {
+  height: 10px;
   border-radius: 5px;
-  font-size: 0.9rem;
 }
 </style>

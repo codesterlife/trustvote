@@ -1,265 +1,168 @@
-import Web3 from 'web3';
-import ElectionFactory from '../constants/contractABI';
+import Web3 from 'web3'
+import contractService from '@/contracts/index'
 
-// Initialize web3
-const getWeb3 = () => {
-  if (window.ethereum) {
-    return new Web3(window.ethereum);
-  } else if (window.web3) {
-    return new Web3(window.web3.currentProvider);
-  } else {
-    throw new Error('No web3 provider detected');
+class Web3Service {
+  constructor() {
+    this.web3 = null
+    this.account = null
+    this.isAdmin = false
+    this.isInitialized = false
+    this.networkId = null
+    this.adminAddresses = [
+      // These would be set from environment variables in a real app
+      '0x123456789abcdef123456789abcdef123456789a', // Test admin address
+    ]
   }
-};
 
-// Request account access
-const requestAccounts = async () => {
-  const web3 = getWeb3();
-  try {
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    return accounts;
-  } catch (error) {
-    throw new Error('User denied account access');
-  }
-};
-
-// Get accounts
-const getAccounts = async () => {
-  const web3 = getWeb3();
-  try {
-    const accounts = await web3.eth.getAccounts();
-    return accounts;
-  } catch (error) {
-    throw new Error('Could not get accounts');
-  }
-};
-
-// Get factory contract
-const getFactory = async (factoryAddress) => {
-  const web3 = getWeb3();
-  return new web3.eth.Contract(
-    ElectionFactory.abi,
-    factoryAddress
-  );
-};
-
-// Get election contract
-const getElection = async (electionAddress, electionABI) => {
-  const web3 = getWeb3();
-  return new web3.eth.Contract(
-    electionABI,
-    electionAddress
-  );
-};
-
-// Create a new election via factory
-const createElection = async (factoryAddress, electionData, fromAddress) => {
-  const web3 = getWeb3();
-  const factory = await getFactory(factoryAddress);
-  
-  const { electionId, title, description, startTime, endTime } = electionData;
-  
-  try {
-    const result = await factory.methods.createElection(
-      electionId,
-      title,
-      description,
-      Math.floor(new Date(startTime).getTime() / 1000),
-      Math.floor(new Date(endTime).getTime() / 1000)
-    ).send({ from: fromAddress });
+  // Initialize Web3 with MetaMask
+  async init() {
+    if (this.isInitialized) return
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error creating election: ${error.message}`);
+    if (window.ethereum) {
+      try {
+        // Modern dapp browsers
+        this.web3 = new Web3(window.ethereum)
+        this.networkId = await this.web3.eth.net.getId()
+        
+        // Initialize contract service
+        await contractService.init(this.web3, this.networkId)
+        
+        this.isInitialized = true
+      } catch (error) {
+        console.error('Error initializing Web3:', error)
+        throw error
+      }
+    } else if (window.web3) {
+      // Legacy dapp browsers
+      this.web3 = new Web3(window.web3.currentProvider)
+      this.networkId = await this.web3.eth.net.getId()
+      
+      // Initialize contract service
+      await contractService.init(this.web3, this.networkId)
+      
+      this.isInitialized = true
+    } else {
+      throw new Error('Non-Ethereum browser detected. You should consider trying MetaMask!')
+    }
   }
-};
 
-// Add a position to an election
-const addPosition = async (electionContract, positionId, title, fromAddress) => {
-  try {
-    const result = await electionContract.methods.addPosition(
-      positionId,
-      title
-    ).send({ from: fromAddress });
+  // Check if MetaMask is installed
+  isMetaMaskInstalled() {
+    return typeof window.ethereum !== 'undefined'
+  }
+
+  // Check if Web3 is connected
+  isConnected() {
+    return this.web3 !== null && this.account !== null
+  }
+
+  // Connect to MetaMask
+  async connect() {
+    if (!this.isMetaMaskInstalled()) {
+      throw new Error('MetaMask is not installed')
+    }
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error adding position: ${error.message}`);
+    try {
+      await this.init()
+      
+      // Request account access
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      this.account = accounts[0]
+      
+      // Check if the account is an admin
+      this.checkAdminStatus()
+      
+      return this.account
+    } catch (error) {
+      console.error('Error connecting to MetaMask:', error)
+      throw error
+    }
   }
-};
 
-// Add a candidate to a position
-const addCandidate = async (electionContract, candidateId, name, positionId, partyId, fromAddress) => {
-  try {
-    const result = await electionContract.methods.addCandidate(
-      candidateId,
-      name,
-      positionId,
-      partyId
-    ).send({ from: fromAddress });
+  // Get the current account
+  async getAccount() {
+    if (!this.isConnected()) {
+      await this.connect()
+    }
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error adding candidate: ${error.message}`);
+    return this.account
   }
-};
 
-// Whitelist a voter
-const whitelistVoter = async (electionContract, voterAddress, fromAddress) => {
-  try {
-    const result = await electionContract.methods.whitelistVoter(
-      voterAddress
-    ).send({ from: fromAddress });
+  // Check if the current account is authenticated
+  async isAuthenticated() {
+    try {
+      const token = localStorage.getItem('token')
+      const user = JSON.parse(localStorage.getItem('user'))
+      
+      // If no token or user, not authenticated
+      if (!token || !user) return false
+      
+      // Check if connected account matches stored user wallet
+      const account = await this.getAccount()
+      
+      // Case-insensitive comparison of Ethereum addresses
+      return account.toLowerCase() === user.wallet_address.toLowerCase()
+    } catch (error) {
+      console.error('Error checking authentication:', error)
+      return false
+    }
+  }
+
+  // Check if the current account is an admin
+  checkAdminStatus() {
+    if (!this.account) return false
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error whitelisting voter: ${error.message}`);
-  }
-};
-
-// Batch whitelist voters
-const batchWhitelistVoters = async (electionContract, voterAddresses, fromAddress) => {
-  try {
-    const result = await electionContract.methods.batchWhitelistVoters(
-      voterAddresses
-    ).send({ from: fromAddress });
+    // Check if the account is in the adminAddresses list
+    this.isAdmin = this.adminAddresses.some(
+      addr => addr.toLowerCase() === this.account.toLowerCase()
+    )
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error batch whitelisting voters: ${error.message}`);
+    return this.isAdmin
   }
-};
 
-// Set election phase
-const setElectionPhase = async (electionContract, phase, fromAddress) => {
-  try {
-    const phaseMap = {
-      'init': 0,
-      'voting': 1,
-      'closed': 2
-    };
+  // Store authentication data
+  async authenticate(token, user) {
+    localStorage.setItem('token', token)
+    localStorage.setItem('user', JSON.stringify(user))
     
-    const result = await electionContract.methods.setPhase(
-      phaseMap[phase]
-    ).send({ from: fromAddress });
+    // Update admin status
+    await this.checkAdminStatus()
+  }
+
+  // Logout
+  async logout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  }
+
+  // Helper to sign a message
+  async signMessage(message) {
+    if (!this.isConnected()) {
+      await this.connect()
+    }
     
-    return result;
-  } catch (error) {
-    throw new Error(`Error setting election phase: ${error.message}`);
+    try {
+      const messageHex = this.web3.utils.utf8ToHex(message)
+      const signature = await this.web3.eth.personal.sign(messageHex, this.account, '')
+      return signature
+    } catch (error) {
+      console.error('Error signing message:', error)
+      throw error
+    }
   }
-};
 
-// Cast a vote
-const castVote = async (electionContract, fromAddress, positionId, candidateId) => {
-  try {
-    const result = await electionContract.methods.vote(
-      positionId,
-      candidateId
-    ).send({ from: fromAddress });
-    
-    return result.transactionHash;
-  } catch (error) {
-    throw new Error(`Error casting vote: ${error.message}`);
+  // Helper to get network name
+  getNetworkName() {
+    switch (this.networkId) {
+      case 1: return 'Ethereum Main Network (Mainnet)'
+      case 3: return 'Ropsten Test Network'
+      case 4: return 'Rinkeby Test Network'
+      case 5: return 'Goerli Test Network'
+      case 42: return 'Kovan Test Network'
+      case 1337: return 'Local Ganache Network'
+      default: return `Unknown Network (ID: ${this.networkId})`
+    }
   }
-};
+}
 
-// Check if voter is whitelisted
-const isVoterWhitelisted = async (electionContract, voterAddress) => {
-  try {
-    const result = await electionContract.methods.isWhitelisted(voterAddress).call();
-    return result;
-  } catch (error) {
-    throw new Error(`Error checking whitelist status: ${error.message}`);
-  }
-};
-
-// Check if voter has voted for a position
-const hasVoted = async (electionContract, voterAddress, positionId) => {
-  try {
-    const result = await electionContract.methods.hasVoted(voterAddress, positionId).call();
-    return result;
-  } catch (error) {
-    throw new Error(`Error checking vote status: ${error.message}`);
-  }
-};
-
-// Get votes for a candidate
-const getVotesForCandidate = async (electionContract, positionId, candidateId) => {
-  try {
-    const result = await electionContract.methods.getVotesForCandidate(positionId, candidateId).call();
-    return result;
-  } catch (error) {
-    throw new Error(`Error getting votes: ${error.message}`);
-  }
-};
-
-// Get winner for a position
-const getWinner = async (electionContract, positionId) => {
-  try {
-    const result = await electionContract.methods.getWinner(positionId).call();
-    return { candidateId: result[0], votes: result[1] };
-  } catch (error) {
-    throw new Error(`Error getting winner: ${error.message}`);
-  }
-};
-
-// Get all results for a position
-const getResults = async (electionContract, positionId) => {
-  try {
-    const result = await electionContract.methods.getResults(positionId).call();
-    const candidateIds = result[0];
-    const votes = result[1];
-    
-    // Combine the arrays into an array of objects
-    const results = candidateIds.map((candidateId, index) => ({
-      candidateId,
-      votes: votes[index]
-    }));
-    
-    return results;
-  } catch (error) {
-    throw new Error(`Error getting results: ${error.message}`);
-  }
-};
-
-// Get all position ids
-const getPositionIds = async (electionContract) => {
-  try {
-    const result = await electionContract.methods.getPositionIds().call();
-    return result;
-  } catch (error) {
-    throw new Error(`Error getting position IDs: ${error.message}`);
-  }
-};
-
-// Get candidates for a position
-const getCandidatesForPosition = async (electionContract, positionId) => {
-  try {
-    const result = await electionContract.methods.getCandidatesForPosition(positionId).call();
-    return result;
-  } catch (error) {
-    throw new Error(`Error getting candidates: ${error.message}`);
-  }
-};
-
-export default {
-  getWeb3,
-  requestAccounts,
-  getAccounts,
-  getFactory,
-  getElection,
-  createElection,
-  addPosition,
-  addCandidate,
-  whitelistVoter,
-  batchWhitelistVoters,
-  setElectionPhase,
-  castVote,
-  isVoterWhitelisted,
-  hasVoted,
-  getVotesForCandidate,
-  getWinner,
-  getResults,
-  getPositionIds,
-  getCandidatesForPosition
-};
+export default new Web3Service()

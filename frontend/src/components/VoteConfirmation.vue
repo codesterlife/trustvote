@@ -2,49 +2,75 @@
   <div class="vote-confirmation">
     <div class="text-center mb-4">
       <div class="confirmation-icon">
-        <i class="bi bi-check-circle-fill text-success"></i>
+        <i class="fas fa-check-circle text-success vote-animation"></i>
       </div>
-      <h3 class="mt-3">Vote Successfully Recorded!</h3>
+      <h3 class="mt-3">Vote Successfully Cast!</h3>
       <p class="text-muted">Your vote has been securely recorded on the blockchain.</p>
     </div>
     
-    <div class="confirmation-details">
-      <div class="detail-item">
-        <div class="detail-label">Election:</div>
-        <div class="detail-value">{{ electionTitle }}</div>
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Transaction Details</h5>
       </div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Position:</div>
-        <div class="detail-value">{{ positionTitle }}</div>
-      </div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Candidate:</div>
-        <div class="detail-value">{{ candidateName }}</div>
-      </div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Transaction Hash:</div>
-        <div class="detail-value transaction-hash">
-          {{ transactionHash }}
-          <a :href="'https://etherscan.io/tx/' + transactionHash" target="_blank" class="ms-2">
-            <i class="bi bi-box-arrow-up-right"></i>
-          </a>
+      <div class="card-body">
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Transaction Hash</small>
+          <div class="d-flex align-items-center">
+            <code class="transaction-hash">{{ txHash }}</code>
+            <button class="btn btn-sm btn-outline-secondary ms-2" @click="copyTxHash">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
         </div>
-      </div>
-      
-      <div class="detail-item">
-        <div class="detail-label">Timestamp:</div>
-        <div class="detail-value">{{ formatDate(timestamp) }}</div>
+        
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Block Number</small>
+          <strong>{{ txDetails.blockNumber || 'Pending...' }}</strong>
+        </div>
+        
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Timestamp</small>
+          <strong>{{ txDetails.timestamp || 'Pending...' }}</strong>
+        </div>
+        
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Status</small>
+          <span class="blockchain-status" :class="statusClass">
+            {{ txDetails.status || 'Pending' }}
+          </span>
+        </div>
       </div>
     </div>
     
-    <div class="text-center mt-4">
-      <button @click="goToResults" class="btn btn-primary me-2">
-        View Results
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Vote Summary</h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Election</small>
+          <strong>{{ voteDetails.electionTitle }}</strong>
+        </div>
+        
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Position</small>
+          <strong>{{ voteDetails.positionTitle }}</strong>
+        </div>
+        
+        <div class="mb-3">
+          <small class="text-muted d-block mb-1">Selected Candidate</small>
+          <strong>{{ voteDetails.candidateName }}</strong>
+        </div>
+      </div>
+    </div>
+    
+    <div class="d-grid gap-2 mt-4">
+      <button @click="viewBlockExplorer" class="btn btn-outline-primary">
+        <i class="fas fa-external-link-alt me-2"></i>
+        View on Block Explorer
       </button>
-      <button @click="goToElections" class="btn btn-outline-secondary">
+      <button @click="$emit('close')" class="btn btn-primary">
+        <i class="fas fa-arrow-left me-2"></i>
         Back to Elections
       </button>
     </div>
@@ -55,98 +81,80 @@
 export default {
   name: 'VoteConfirmation',
   props: {
-    electionId: {
-      type: [Number, String],
-      required: true
-    },
-    electionTitle: {
+    txHash: {
       type: String,
       required: true
     },
-    positionTitle: {
-      type: String,
+    voteDetails: {
+      type: Object,
       required: true
     },
-    candidateName: {
-      type: String,
-      required: true
-    },
-    transactionHash: {
-      type: String,
-      required: true
-    },
-    timestamp: {
-      type: [Date, String],
-      default: () => new Date()
+    txDetails: {
+      type: Object,
+      default: () => ({
+        blockNumber: null,
+        timestamp: null,
+        status: 'Pending'
+      })
+    }
+  },
+  computed: {
+    statusClass() {
+      const status = this.txDetails.status?.toLowerCase() || ''
+      if (status === 'confirmed' || status === 'success') return 'status-confirmed'
+      if (status === 'failed' || status === 'error') return 'status-failed'
+      return 'status-pending'
     }
   },
   methods: {
-    formatDate(date) {
-      const d = new Date(date);
-      return new Intl.DateTimeFormat('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).format(d);
+    copyTxHash() {
+      navigator.clipboard.writeText(this.txHash)
+        .then(() => {
+          alert('Transaction hash copied to clipboard')
+        })
+        .catch(err => {
+          console.error('Could not copy text: ', err)
+        })
     },
-    goToResults() {
-      this.$router.push({ name: 'Results', params: { id: this.electionId } });
-    },
-    goToElections() {
-      this.$router.push({ name: 'Home' });
+    viewBlockExplorer() {
+      // For Ganache, this would typically open a local URL
+      // For testnets like Rinkeby, Ropsten, etc. it would open Etherscan
+      const baseUrl = 'https://rinkeby.etherscan.io/tx/'
+      window.open(`${baseUrl}${this.txHash}`, '_blank')
     }
   }
-};
+}
 </script>
 
 <style scoped>
 .vote-confirmation {
-  background-color: #f9f9f9;
-  border-radius: 10px;
-  padding: 30px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .confirmation-icon {
   font-size: 5rem;
-  color: #28a745;
+  margin-bottom: 1rem;
 }
 
-.confirmation-details {
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+.vote-animation {
+  animation: pulse 1.5s infinite;
 }
 
-.detail-item {
-  display: flex;
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.detail-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.detail-label {
-  font-weight: bold;
-  width: 150px;
-  color: #555;
-}
-
-.detail-value {
-  flex: 1;
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
 }
 
 .transaction-hash {
-  font-family: monospace;
   word-break: break-all;
+  background-color: #f8f9fa;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

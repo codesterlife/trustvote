@@ -1,152 +1,115 @@
 <template>
-  <div class="register">
-    <div class="row justify-content-center">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header bg-primary text-white">
-            <h3 class="card-title mb-0">Register for TrustVote</h3>
-          </div>
-          
-          <div class="card-body">
-            <div v-if="error" class="alert alert-danger">
-              {{ error }}
+  <div class="register-page">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+          <div class="card">
+            <div class="card-header bg-primary text-white">
+              <h3 class="mb-0">Register as a Voter</h3>
             </div>
-            
-            <form @submit.prevent="handleRegister">
-              <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="username"
-                  v-model="formData.username"
-                  required
-                  autofocus
-                >
+            <div class="card-body">
+              <div v-if="!isMetaMaskConnected" class="text-center mb-4">
+                <p class="mb-3">First, connect your MetaMask wallet to continue:</p>
+                <MetaMaskButton @connected="handleMetaMaskConnect" />
               </div>
               
-              <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input
-                  type="email"
-                  class="form-control"
-                  id="email"
-                  v-model="formData.email"
-                >
-              </div>
-              
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label for="first_name" class="form-label">First Name</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="first_name"
-                    v-model="formData.first_name"
-                  >
+              <form v-else @submit.prevent="registerUser" class="needs-validation" novalidate>
+                <div class="alert alert-info mb-4">
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <div>
+                      <strong>Connected Wallet:</strong> {{ truncatedWalletAddress }}
+                    </div>
+                  </div>
                 </div>
                 
-                <div class="col-md-6 mb-3">
-                  <label for="last_name" class="form-label">Last Name</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="last_name"
-                    v-model="formData.last_name"
+                <div class="mb-3">
+                  <label for="studentId" class="form-label">Student ID</label>
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    id="studentId" 
+                    v-model="form.studentId" 
+                    required
+                    :class="{ 'is-invalid': errors.studentId }"
                   >
+                  <div class="invalid-feedback">{{ errors.studentId }}</div>
                 </div>
-              </div>
-              
-              <div class="mb-3">
-                <label for="student_id" class="form-label">Student ID</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="student_id"
-                  v-model="formData.student_id"
-                  required
-                >
-                <small class="text-muted">Your student ID will be verified by administrators</small>
-              </div>
-              
-              <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input
-                  type="password"
-                  class="form-control"
-                  id="password"
-                  v-model="formData.password"
-                  required
-                >
-              </div>
-              
-              <div class="mb-3">
-                <label for="confirm_password" class="form-label">Confirm Password</label>
-                <input
-                  type="password"
-                  class="form-control"
-                  id="confirm_password"
-                  v-model="confirmPassword"
-                  required
-                >
-                <div v-if="passwordMismatch" class="text-danger mt-1">
-                  Passwords do not match
+                
+                <div class="mb-3">
+                  <label for="fullName" class="form-label">Full Name</label>
+                  <input 
+                    type="text" 
+                    class="form-control" 
+                    id="fullName" 
+                    v-model="form.fullName" 
+                    required
+                    :class="{ 'is-invalid': errors.fullName }"
+                  >
+                  <div class="invalid-feedback">{{ errors.fullName }}</div>
                 </div>
-              </div>
-              
-              <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary" :disabled="loading || passwordMismatch">
-                  <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                  Register
-                </button>
-              </div>
-            </form>
-            
-            <div class="mt-4 text-center">
-              <p>Already have an account? <router-link to="/login">Login</router-link></p>
+                
+                <div class="mb-3">
+                  <label for="email" class="form-label">Email Address</label>
+                  <input 
+                    type="email" 
+                    class="form-control" 
+                    id="email" 
+                    v-model="form.email" 
+                    required
+                    :class="{ 'is-invalid': errors.email }"
+                  >
+                  <div class="invalid-feedback">{{ errors.email }}</div>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="department" class="form-label">Department</label>
+                  <select 
+                    class="form-select" 
+                    id="department" 
+                    v-model="form.department"
+                    required
+                    :class="{ 'is-invalid': errors.department }"
+                  >
+                    <option value="" disabled>Select your department</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Business">Business</option>
+                    <option value="Arts & Humanities">Arts & Humanities</option>
+                    <option value="Sciences">Sciences</option>
+                  </select>
+                  <div class="invalid-feedback">{{ errors.department }}</div>
+                </div>
+                
+                <div class="mb-4">
+                  <div class="form-check">
+                    <input 
+                      class="form-check-input" 
+                      type="checkbox" 
+                      id="terms" 
+                      v-model="form.termsAccepted"
+                      required
+                      :class="{ 'is-invalid': errors.termsAccepted }"
+                    >
+                    <label class="form-check-label" for="terms">
+                      I accept the terms and conditions and understand that my wallet address will be
+                      used for voting verification.
+                    </label>
+                    <div class="invalid-feedback">{{ errors.termsAccepted }}</div>
+                  </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+                    <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    Register
+                  </button>
+                  <router-link to="/login" class="btn btn-outline-secondary">
+                    Already registered? Login
+                  </router-link>
+                </div>
+              </form>
             </div>
-          </div>
-        </div>
-        
-        <div class="mt-4 card blockchain-info">
-          <div class="card-body">
-            <h5 class="card-title">
-              <i class="bi bi-info-circle me-2"></i>
-              Next Steps After Registration
-            </h5>
-            <p class="card-text">
-              After registering, you'll need to:
-            </p>
-            <ol>
-              <li>Wait for admin verification of your student ID</li>
-              <li>Log in to your account</li>
-              <li>Connect your MetaMask wallet</li>
-              <li>Participate in active elections</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-md-6 d-none d-md-block">
-        <div class="registration-info">
-          <h2>Join the Blockchain Voting Revolution</h2>
-          <p class="lead">TrustVote brings several benefits to the election process:</p>
-          
-          <ul class="feature-list">
-            <li><i class="bi bi-check-circle"></i> Immutability: Votes cannot be altered once cast</li>
-            <li><i class="bi bi-shield-lock"></i> Security: Cryptographic protection of your vote</li>
-            <li><i class="bi bi-eye"></i> Transparency: Public verification of results</li>
-            <li><i class="bi bi-arrow-repeat"></i> No double-voting: Smart contracts prevent multiple votes</li>
-          </ul>
-          
-          <div class="mt-4">
-            <h5>What You'll Need:</h5>
-            <p>
-              <i class="bi bi-wallet2 me-2"></i> MetaMask Wallet - A browser extension that allows you to interact with the Ethereum blockchain
-            </p>
-            <p>
-              <i class="bi bi-person-badge me-2"></i> Valid Student ID - To verify your eligibility to vote
-            </p>
           </div>
         </div>
       </div>
@@ -155,109 +118,154 @@
 </template>
 
 <script>
-import apiService from '@/services/api';
+import MetaMaskButton from '@/components/MetaMaskButton.vue'
+import web3Service from '@/services/web3'
+import api from '@/services/api'
 
 export default {
   name: 'Register',
+  components: {
+    MetaMaskButton
+  },
   data() {
     return {
-      formData: {
-        username: '',
+      isMetaMaskConnected: false,
+      walletAddress: '',
+      isSubmitting: false,
+      form: {
+        studentId: '',
+        fullName: '',
         email: '',
-        first_name: '',
-        last_name: '',
-        student_id: '',
-        password: '',
-        wallet_address: ''
+        department: '',
+        termsAccepted: false
       },
-      confirmPassword: '',
-      loading: false,
-      error: null
-    };
+      errors: {
+        studentId: '',
+        fullName: '',
+        email: '',
+        department: '',
+        termsAccepted: ''
+      }
+    }
   },
   computed: {
-    passwordMismatch() {
-      return this.formData.password && this.confirmPassword && 
-             this.formData.password !== this.confirmPassword;
+    truncatedWalletAddress() {
+      if (!this.walletAddress) return ''
+      return this.walletAddress.substring(0, 6) + '...' + this.walletAddress.substring(this.walletAddress.length - 4)
     }
   },
   methods: {
-    async handleRegister() {
-      if (this.passwordMismatch) {
-        return;
+    async handleMetaMaskConnect(account) {
+      this.isMetaMaskConnected = true
+      this.walletAddress = account
+    },
+    validateForm() {
+      let isValid = true
+      this.errors = {
+        studentId: '',
+        fullName: '',
+        email: '',
+        department: '',
+        termsAccepted: ''
       }
       
-      this.loading = true;
-      this.error = null;
+      if (!this.form.studentId) {
+        this.errors.studentId = 'Student ID is required'
+        isValid = false
+      }
+      
+      if (!this.form.fullName) {
+        this.errors.fullName = 'Full name is required'
+        isValid = false
+      }
+      
+      if (!this.form.email) {
+        this.errors.email = 'Email is required'
+        isValid = false
+      } else if (!/^\S+@\S+\.\S+$/.test(this.form.email)) {
+        this.errors.email = 'Please enter a valid email address'
+        isValid = false
+      }
+      
+      if (!this.form.department) {
+        this.errors.department = 'Please select your department'
+        isValid = false
+      }
+      
+      if (!this.form.termsAccepted) {
+        this.errors.termsAccepted = 'You must accept the terms to continue'
+        isValid = false
+      }
+      
+      return isValid
+    },
+    async registerUser() {
+      if (!this.validateForm()) return
       
       try {
-        await apiService.register(this.formData);
-        this.$store.commit('setNotification', {
-          message: 'Registration successful! Please log in.',
-          type: 'success'
-        });
-        this.$router.push('/login');
+        this.isSubmitting = true
+        
+        // Prepare registration data
+        const registrationData = {
+          student_id: this.form.studentId,
+          full_name: this.form.fullName,
+          email: this.form.email,
+          department: this.form.department,
+          wallet_address: this.walletAddress
+        }
+        
+        // Send registration request to API
+        await api.registerVoter(registrationData)
+        
+        // Show success message
+        alert('Registration successful! An admin will verify your account soon.')
+        
+        // Redirect to login page
+        this.$router.push('/login')
       } catch (error) {
-        this.error = error.response?.data?.detail || 
-                    'Registration failed. Please check your information and try again.';
-        console.error('Registration error:', error);
+        console.error('Registration error:', error)
+        
+        // Handle API errors
+        if (error.response && error.response.data) {
+          const responseErrors = error.response.data
+          
+          // Map API errors to form fields
+          if (responseErrors.student_id) this.errors.studentId = responseErrors.student_id[0]
+          if (responseErrors.email) this.errors.email = responseErrors.email[0]
+          if (responseErrors.wallet_address) alert(`Wallet error: ${responseErrors.wallet_address[0]}`)
+          
+          // Generic error
+          if (responseErrors.detail) alert(`Error: ${responseErrors.detail}`)
+        } else {
+          alert('Registration failed. Please try again later.')
+        }
       } finally {
-        this.loading = false;
+        this.isSubmitting = false
       }
     }
   },
-  created() {
-    // Redirect if already logged in
-    if (this.$store.getters.isAuthenticated) {
-      this.$router.push('/');
+  async mounted() {
+    // Check if MetaMask is already connected
+    if (web3Service.isConnected()) {
+      this.isMetaMaskConnected = true
+      this.walletAddress = await web3Service.getAccount()
     }
   }
-};
+}
 </script>
 
 <style scoped>
-.register {
-  margin-top: 2rem;
+.register-page {
+  padding: 40px 0;
 }
 
 .card {
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  border: none;
+  border-radius: 10px;
 }
 
 .card-header {
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  padding: 1rem;
-}
-
-.registration-info {
-  background-color: #f8f9fa;
-  padding: 2rem;
-  border-radius: 8px;
-  height: 100%;
-}
-
-.feature-list {
-  list-style: none;
-  padding-left: 0;
-  margin-top: 1.5rem;
-}
-
-.feature-list li {
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-}
-
-.feature-list li i {
-  margin-right: 10px;
-  color: #4285f4;
-  font-size: 1.2rem;
-}
-
-.blockchain-info {
-  background-color: #e6f7ff;
-  border-left: 4px solid #1890ff;
+  border-radius: 10px 10px 0 0 !important;
 }
 </style>

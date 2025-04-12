@@ -1,100 +1,102 @@
 <template>
-  <div>
-    <button @click="handleConnect" class="metamask-button" :disabled="isConnecting">
-      <img src="https://metamask.io/images/mm-logo.svg" alt="MetaMask" width="20" height="20" class="metamask-logo mr-2">
-      {{ buttonText }}
-    </button>
-    <div v-if="errorMessage" class="mt-2 text-danger">
-      {{ errorMessage }}
+  <button 
+    @click="connectMetaMask" 
+    class="btn btn-metamask"
+    :disabled="isConnecting || !isMetaMaskInstalled">
+    <div v-if="isConnecting" class="spinner-border spinner-border-sm me-2" role="status">
+      <span class="visually-hidden">Loading...</span>
     </div>
-  </div>
+    <i v-else class="fab fa-ethereum me-2"></i>
+    {{ buttonText }}
+  </button>
 </template>
 
 <script>
+import web3Service from '@/services/web3'
+
 export default {
   name: 'MetaMaskButton',
   props: {
-    alreadyConnected: {
-      type: Boolean,
-      default: false
+    onConnected: {
+      type: Function,
+      default: () => {}
     }
   },
   data() {
     return {
       isConnecting: false,
-      errorMessage: ''
-    };
+      isMetaMaskInstalled: false,
+      account: null
+    }
   },
   computed: {
     buttonText() {
-      if (this.isConnecting) {
-        return 'Connecting...';
-      }
-      if (this.alreadyConnected) {
-        return 'MetaMask Connected';
-      }
-      return 'Connect MetaMask';
+      if (!this.isMetaMaskInstalled) return 'MetaMask Not Installed'
+      if (this.isConnecting) return 'Connecting...'
+      if (this.account) return `Connected: ${this.account.substring(0, 6)}...${this.account.substring(this.account.length - 4)}`
+      return 'Connect MetaMask'
     }
   },
   methods: {
-    async handleConnect() {
-      if (this.alreadyConnected) {
-        return;
-      }
-      
-      this.isConnecting = true;
-      this.errorMessage = '';
+    async connectMetaMask() {
+      if (!this.isMetaMaskInstalled || this.isConnecting) return
       
       try {
-        // Check if MetaMask is installed
-        if (!window.ethereum) {
-          throw new Error('MetaMask is not installed. Please install MetaMask to continue.');
-        }
-        
-        // Request account access
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        
-        if (accounts.length === 0) {
-          throw new Error('No accounts found. Please create an account in MetaMask.');
-        }
-        
-        // Emit success event with the connected account
-        this.$emit('connected', accounts[0]);
+        this.isConnecting = true
+        await web3Service.connect()
+        this.account = await web3Service.getAccount()
+        this.onConnected(this.account)
       } catch (error) {
-        this.errorMessage = error.message || 'Failed to connect to MetaMask';
-        this.$emit('error', this.errorMessage);
+        console.error('MetaMask connection error:', error)
+        alert('Failed to connect to MetaMask: ' + error.message)
       } finally {
-        this.isConnecting = false;
+        this.isConnecting = false
+      }
+    },
+    async checkConnection() {
+      try {
+        if (web3Service.isConnected()) {
+          this.account = await web3Service.getAccount()
+        }
+      } catch (error) {
+        console.error('Error checking connection:', error)
       }
     }
+  },
+  async mounted() {
+    // Check if MetaMask is installed
+    this.isMetaMaskInstalled = web3Service.isMetaMaskInstalled()
+    
+    // Check if already connected
+    this.checkConnection()
+    
+    // Listen for account changes
+    window.ethereum?.on('accountsChanged', (accounts) => {
+      if (accounts.length > 0) {
+        this.account = accounts[0]
+        this.onConnected(this.account)
+      } else {
+        this.account = null
+      }
+    })
   }
-};
+}
 </script>
 
 <style scoped>
-.metamask-button {
-  display: inline-flex;
-  align-items: center;
-  background-color: #f6851b;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 5px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s;
+.btn-metamask {
+  position: relative;
+  transition: all 0.3s ease;
 }
 
-.metamask-button:hover {
-  background-color: #e2761b;
+.btn-metamask:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(246, 133, 27, 0.3);
 }
 
-.metamask-button:disabled {
-  background-color: #cccccc;
+.btn-metamask:disabled {
+  background-color: #ccc;
+  border-color: #ccc;
   cursor: not-allowed;
-}
-
-.metamask-logo {
-  margin-right: 8px;
 }
 </style>
