@@ -91,6 +91,60 @@ class UpdateWalletView(APIView):
             "wallet_address": wallet_address
         })
 
+class UserProfileUpdateView(APIView):
+    """
+    API endpoint to update user profile
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def put(self, request):
+        user = request.user
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UserVotesView(APIView):
+    """
+    API endpoint to get user's voting history
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Get user's wallet address
+        wallet_address = user.wallet_address
+        
+        if not wallet_address:
+            return Response(
+                {'error': 'Wallet address not set. Please connect your wallet first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get votes associated with this wallet address
+        votes = Vote.objects.filter(wallet=wallet_address)
+        
+        # Enhance the data with election and candidate names
+        result = []
+        for vote in votes:
+            vote_data = {
+                'id': vote.id,
+                'election_id': vote.election.id,
+                'election_title': vote.election.title,
+                'position_id': vote.position.id,
+                'position_title': vote.position.title,
+                'candidate_id': vote.candidate.id,
+                'candidate_name': vote.candidate.name,
+                'timestamp': vote.timestamp,
+                'transaction_hash': vote.transaction_hash
+            }
+            result.append(vote_data)
+        
+        return Response(result)
+
 class ElectionViewSet(viewsets.ModelViewSet):
     """
     API endpoints for election management
