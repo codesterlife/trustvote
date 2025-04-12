@@ -51,3 +51,11 @@ waitForPort = 3000
 
 [deployment]
 run = ["sh", "-c", "cd backend && python manage.py runserver 0.0.0.0:5000"]
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
