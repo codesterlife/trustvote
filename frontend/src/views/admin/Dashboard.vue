@@ -49,6 +49,12 @@
             Results
           </router-link>
         </li>
+        <li class="nav-item">
+          <router-link class="nav-link" :to="'/analytics'" active-class="active">
+            <i class="fas fa-chart-line me-1"></i>
+            Analytics
+          </router-link>
+        </li>
       </ul>
     </div>
     
@@ -172,17 +178,47 @@ export default {
       return classes[type] || ''
     },
     async loadDashboardStats() {
-      // In a real implementation, this would fetch stats from the backend
-      // For now, just using placeholder data
-      this.stats = {
-        totalElections: 5,
-        activeElections: 2,
-        totalCandidates: 24,
-        pendingApprovals: 3,
-        registeredVoters: 156,
-        whitelistedVoters: 142,
-        totalVotes: 358,
-        todayVotes: 42
+      try {
+        // Fetch real data from the API
+        const [electionsResponse, candidatesResponse, votersResponse, votesResponse] = await Promise.all([
+          this.$store.dispatch('fetchElections'),
+          this.$store.dispatch('fetchCandidates'),
+          this.$store.dispatch('fetchVoters'),
+          Promise.resolve([]) // We don't have a direct API call for all votes yet
+        ]);
+        
+        // Calculate statistics from the fetched data
+        const elections = this.$store.getters.allElections || [];
+        const activeElections = elections.filter(e => e.status === 'Voting').length;
+        
+        const candidates = this.$store.getters.candidates || [];
+        // For the pending approvals, we're using a placeholder since there's no direct way to track this
+        const pendingApprovals = 0;
+        
+        const voters = this.$store.getters.voters || [];
+        const whitelistedVoters = voters.filter(v => v.is_whitelisted).length;
+        
+        // For votes, we need to fetch from each election
+        let totalVotes = 0;
+        let todayVotes = 0;
+        
+        // Simplified calculation for today's votes
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Update the stats with real data
+        this.stats = {
+          totalElections: elections.length,
+          activeElections,
+          totalCandidates: candidates.length,
+          pendingApprovals,
+          registeredVoters: voters.length,
+          whitelistedVoters,
+          totalVotes, // This would be calculated from real vote data
+          todayVotes // This would be calculated from real vote data
+        };
+      } catch (error) {
+        console.error('Error loading dashboard stats:', error);
       }
     }
   },

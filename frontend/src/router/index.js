@@ -7,6 +7,7 @@ import Elections from '@/views/Elections.vue'
 import ElectionDetail from '@/views/ElectionDetail.vue'
 import VotingPage from '@/views/VotingPage.vue'
 import ElectionResults from '@/views/ElectionResults.vue'
+import AnalyticsDashboard from '@/views/AnalyticsDashboard.vue'
 import Dashboard from '@/views/admin/Dashboard.vue'
 import ElectionManagement from '@/views/admin/ElectionManagement.vue'
 import CandidateManagement from '@/views/admin/CandidateManagement.vue'
@@ -59,6 +60,12 @@ const routes = [
     name: 'ElectionResults',
     component: ElectionResults,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/analytics',
+    name: 'AnalyticsDashboard',
+    component: AnalyticsDashboard,
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
     path: '/admin',
