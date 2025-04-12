@@ -5,7 +5,7 @@ import Login from '@/views/Login.vue'
 import Elections from '@/views/Elections.vue'
 import ElectionDetail from '@/views/ElectionDetail.vue'
 import VotingPage from '@/views/VotingPage.vue'
-import Results from '@/views/Results.vue'
+import ElectionResults from '@/views/ElectionResults.vue'
 import Dashboard from '@/views/admin/Dashboard.vue'
 import ElectionManagement from '@/views/admin/ElectionManagement.vue'
 import CandidateManagement from '@/views/admin/CandidateManagement.vue'
@@ -49,8 +49,8 @@ const routes = [
   },
   {
     path: '/elections/:id/results',
-    name: 'Results',
-    component: Results,
+    name: 'ElectionResults',
+    component: ElectionResults,
     meta: { requiresAuth: true }
   },
   {
