@@ -52,6 +52,10 @@ const api = {
     return apiClient.get('/auth/user/')
   },
   
+  updateWallet(walletData) {
+    return apiClient.post('/auth/update-wallet/', walletData)
+  },
+  
   // Elections
   getElections() {
     return apiClient.get('/elections/')

@@ -12,9 +12,9 @@
             <p class="mb-4">
               Please connect your MetaMask wallet to participate in elections.
             </p>
-            <button @click="handleConnect" class="btn wallet-btn btn-lg">
-              <i class="fas fa-plug me-2"></i>
-              Connect MetaMask
+            <button @click="handleConnect" class="btn wallet-btn btn-lg" :disabled="isLoading">
+              <i class="fas me-2" :class="isLoading ? 'fa-spinner fa-spin' : 'fa-plug'"></i>
+              {{ isLoading ? 'Connecting...' : 'Connect MetaMask' }}
             </button>
           </div>
           
@@ -25,10 +25,35 @@
                 <strong>Wallet Connected:</strong> {{ truncatedWalletAddress }}
               </div>
             </div>
-            <div class="network-info mt-2">
+            <div class="network-info mt-2 mb-3">
               <span class="badge" :class="networkBadgeClass">
                 {{ networkName }}
               </span>
+            </div>
+            
+            <!-- Whitelisting Status -->
+            <div class="mt-3" v-if="isLoggedIn">
+              <div v-if="isWalletLinked">
+                <div class="alert alert-info" v-if="!isWhitelisted">
+                  <i class="fas fa-info-circle me-2"></i>
+                  Your wallet is linked to your account but not yet whitelisted for voting. 
+                  Please wait for an admin to approve your account.
+                </div>
+                <div class="alert alert-success" v-else>
+                  <i class="fas fa-user-check me-2"></i>
+                  Your wallet is whitelisted for voting! You can now participate in all eligible elections.
+                </div>
+              </div>
+              <div v-else>
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  Your wallet is connected but not linked to your account.
+                </div>
+                <button @click="linkWalletToAccount" class="btn btn-primary" :disabled="isLinking">
+                  <i class="fas me-2" :class="isLinking ? 'fa-spinner fa-spin' : 'fa-link'"></i>
+                  {{ isLinking ? 'Linking...' : 'Link Wallet to Account' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -46,18 +71,35 @@
             Install MetaMask
           </a>
         </div>
+        
+        <!-- Error messages -->
+        <div v-if="error" class="mt-3 alert alert-danger">
+          <i class="fas fa-exclamation-circle me-2"></i>
+          {{ error }}
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex'
+import { mapGetters, mapActions, mapState } from 'vuex'
+import api from '@/services/api'
 
 export default {
   name: 'ConnectWallet',
+  data() {
+    return {
+      isLoading: false,
+      isLinking: false,
+      error: null
+    }
+  },
   computed: {
-    ...mapGetters(['hasMetaMask', 'isConnected', 'walletAddress', 'networkId']),
+    ...mapGetters(['hasMetaMask', 'isConnected', 'walletAddress', 'networkId', 'isLoggedIn']),
+    ...mapState({
+      currentUser: state => state.user
+    }),
     truncatedWalletAddress() {
       if (!this.walletAddress) return ''
       return this.walletAddress.slice(0, 6) + '...' + this.walletAddress.slice(-4)
@@ -79,15 +121,54 @@ export default {
       return testNets.includes(this.networkId) 
         ? 'bg-info' 
         : (this.networkId === 1 ? 'bg-success' : 'bg-warning')
+    },
+    isWalletLinked() {
+      return this.currentUser && 
+             this.currentUser.wallet_address && 
+             this.walletAddress && 
+             this.currentUser.wallet_address.toLowerCase() === this.walletAddress.toLowerCase()
+    },
+    isWhitelisted() {
+      return this.currentUser && this.currentUser.is_whitelisted
     }
   },
   methods: {
     ...mapActions(['connectWallet']),
     async handleConnect() {
+      this.isLoading = true
+      this.error = null
+      
       try {
         await this.connectWallet()
       } catch (error) {
         console.error('Failed to connect wallet:', error)
+        this.error = error.message || 'Failed to connect MetaMask. Please make sure MetaMask is unlocked.'
+      } finally {
+        this.isLoading = false
+      }
+    },
+    async linkWalletToAccount() {
+      if (!this.isConnected || !this.walletAddress) {
+        this.error = 'Please connect your MetaMask wallet first'
+        return
+      }
+      
+      this.isLinking = true
+      this.error = null
+      
+      try {
+        // Call API to update wallet address for current user
+        await api.updateWallet({ wallet_address: this.walletAddress })
+        
+        // Refresh user data to update the UI
+        const response = await api.getCurrentUser()
+        this.$store.commit('SET_USER', response.data)
+        
+      } catch (error) {
+        console.error('Failed to link wallet to account:', error)
+        this.error = error.response?.data?.error || 'Failed to link wallet to your account'
+      } finally {
+        this.isLinking = false
       }
     }
   }
@@ -117,5 +198,15 @@ export default {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.network-info {
+  display: flex;
+  justify-content: center;
+}
+
+.badge {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
 }
 </style>
