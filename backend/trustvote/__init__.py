@@ -1,0 +1,1 @@
+# TrustVote blockchain voting application
