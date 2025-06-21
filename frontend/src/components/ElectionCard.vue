@@ -30,20 +30,23 @@
       </div>
       
       <div class="d-flex justify-content-between">
-        <router-link :to="`/elections/${election.electionId}`" class="btn btn-outline-primary">
-          <i class="fas fa-info-circle me-1"></i>
+        <router-link :to="`/elections/${election.electionId}`" class="btn btn-outline-primary mx-1">
+          <i class="fas fa-info-circle"></i>
           Details
         </router-link>
         
         <div>
-          <router-link v-if="canVote" :to="`/elections/${election.electionId}/vote`" class="btn btn-primary me-2">
-            <i class="fas fa-vote-yea me-1"></i>
+          <router-link v-if="canVote" :to="`/elections/${election.electionId}/vote`" class="btn btn-primary mx-1">
+            <i class="fas fa-vote-yea"></i>
             Vote
           </router-link>
           
-          <router-link :to="`/elections/${election.electionId}/results`" class="btn btn-outline-secondary">
-            <i class="fas fa-chart-pie me-1"></i>
+          <router-link :to="`/elections/${election.electionId}/results`" class="btn btn-outline-secondary mx-1">
+            <i class="fas fa-chart-pie"></i>
             Results
+          </router-link>
+          <router-link :to="`/elections/${election.electionId}/electoral-roll`" class="btn btn-outline-info mx-1">
+            <i class="fas fa-list"></i> Electoral Roll
           </router-link>
         </div>
       </div>

@@ -44,6 +44,12 @@
           </router-link>
         </li>
         <li class="nav-item">
+          <router-link class="nav-link" :to="'/admin/electoral-roll'" active-class="active">
+            <i class="fas fa-list me-1"></i>
+            Electoral Rolls
+          </router-link>
+        </li>
+        <li class="nav-item">
           <router-link class="nav-link" :to="'/admin/results'" active-class="active">
             <i class="fas fa-chart-pie me-1"></i>
             Results
@@ -84,9 +90,6 @@
               </div>
               <h5 class="card-title">Candidates</h5>
               <p class="stats-number">{{ stats.totalCandidates }}</p>
-              <div class="stats-label" :class="getStatusClass('pending')">
-                {{ stats.pendingApprovals }} Pending
-              </div>
             </div>
           </div>
         </div>
@@ -99,14 +102,11 @@
               </div>
               <h5 class="card-title">Registered Voters</h5>
               <p class="stats-number">{{ stats.registeredVoters }}</p>
-              <div class="stats-label" :class="getStatusClass('whitelisted')">
-                {{ stats.whitelistedVoters }} Whitelisted
-              </div>
             </div>
           </div>
         </div>
         
-        <div class="col-md-3 mb-3">
+        <!-- <div class="col-md-3 mb-3">
           <div class="card stats-card h-100">
             <div class="card-body">
               <div class="stats-icon mb-3">
@@ -119,7 +119,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> -->
       </div>
     </div>
     

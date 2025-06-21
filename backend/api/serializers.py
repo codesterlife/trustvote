@@ -1,14 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Election, Position, Party, Candidate, Vote
+from .models import User, Election,VoterElectionWhitelist, ElectoralRoll, Position, Party, Candidate, Vote
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_admin', 
-                 'student_id', 'wallet_address', 'is_whitelisted')
-        read_only_fields = ('id', 'is_admin', 'is_whitelisted')
+                 'student_id', 'wallet_address',)
+        read_only_fields = ('id', 'is_admin', )
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -98,11 +98,12 @@ class CandidateSerializer(serializers.ModelSerializer):
 
 class ElectionSerializer(serializers.ModelSerializer):
     positions = PositionSerializer(many=True, read_only=True)
+    whitelisted_voters = serializers.SerializerMethodField()
     
     class Meta:
         model = Election
         fields = ('id', 'title', 'description', 'start_time', 'end_time', 
-                 'status', 'created_at', 'updated_at', 'contract_address', 'positions')
+                 'status', 'created_at', 'updated_at', 'contract_address', 'positions', 'whitelisted_voters')
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -122,30 +123,73 @@ class ElectionSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         positions_data = self.context.get('positions', [])
+        
+        print("\n=== Creating Election ===")
+        print("Validated Data:", validated_data)
+        print("Positions Data:", positions_data)
+
         election = Election.objects.create(**validated_data)
         
         # Create positions for this election
         for position_data in positions_data:
+            print("Creating Position:", position_data)
             Position.objects.create(election=election, **position_data)
-        
+
+        print("Election Created with ID:", election.id)
         return election
     
     def update(self, instance, validated_data):
         positions_data = self.context.get('positions', [])
+        print("\n=== Updating Election ===")
+        print("Election ID:", instance.id)
+        print("Validated Data:", validated_data)
+        print("Positions Data:", positions_data)
         
         # Update election fields
         for attr, value in validated_data.items():
+            print(f"Updating {attr} to {value}")
             setattr(instance, attr, value)
         instance.save()
         
         # Handle positions update if needed
         if positions_data:
-            # Clear existing positions and create new ones
+            print("Updating Positions for Election ID:", instance.id)
             instance.positions.all().delete()
+
+            new_positions = []
             for position_data in positions_data:
-                Position.objects.create(election=instance, **position_data)
-        
+                print("Creating Position:", position_data)
+                # Remove 'election' key from position_data to avoid conflict
+                position_data.pop('election', None)
+                position_data.pop('candidates', None)
+                new_positions.append(Position(election=instance, **position_data))
+
+            # Bulk create new positions
+            Position.objects.bulk_create(new_positions)
+
+        print("Election Updated with ID:", instance.id)
         return instance
+    
+    def get_whitelisted_voters(self, obj):
+        whitelisted = VoterElectionWhitelist.objects.filter(election=obj, is_whitelisted=True)
+        return VoterElectionWhitelistSerializer(whitelisted, many=True).data
+    
+class ElectoralRollSerializer(serializers.ModelSerializer):
+    election_title = serializers.CharField(source='election.title', read_only=True)
+
+    class Meta:
+        model = ElectoralRoll
+        fields = ('id', 'election', 'election_title', 'first_name', 'last_name', 'student_id')
+    
+
+
+class VoterElectionWhitelistSerializer(serializers.ModelSerializer):
+    voter_name = serializers.CharField(source='voter.username', read_only=True)
+    election_title = serializers.CharField(source='election.title', read_only=True)
+
+    class Meta:
+        model = VoterElectionWhitelist
+        fields = ('id', 'voter', 'voter_name', 'election', 'election_title', 'is_whitelisted')
 
 class VoteSerializer(serializers.ModelSerializer):
     class Meta:

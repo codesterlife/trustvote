@@ -57,18 +57,18 @@
         <div class="spinner-border text-primary" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-2">Fetching results from blockchain...</p>
+        <p class="mt-2">Fetching results from backend...</p>
       </div>
       
       <div v-else>
-        <div v-for="position in election.positions" :key="position.positionId" class="position-results mb-5">
+        <div v-for="position in election.positions" :key="position.position_id" class="position-results mb-5">
+          <!-- {{ console.log("Position: ", position) }} -->
           <div class="position-header mb-3">
             <h2>{{ position.title }}</h2>
           </div>
-          
           <div class="card result-card">
             <div class="card-body">
-              <div class="winner-section mb-4" v-if="getWinner(position.positionId)">
+              <div class="winner-section mb-4" v-if="getWinner(position.position_id)">
                 <div class="winner-badge">
                   <i class="fas fa-trophy"></i> Winner
                 </div>
@@ -76,20 +76,26 @@
                   <div class="row align-items-center">
                     <div class="col-md-2 text-center">
                       <div class="winner-icon">
-                        <i class="fas fa-user-circle fa-4x"></i>
+                        <i class="fas fa-user-circle fa-4x" v-if="getWinner(position.position_id).name !== 'Tie'"></i>
+                        <i class="fas fa-balance-scale fa-4x" v-else></i>
                       </div>
                     </div>
                     <div class="col-md-7">
-                      <h3 class="winner-name">{{ getWinner(position.positionId).name }}</h3>
-                      <p class="winner-info mb-0">
-                        <span class="badge bg-secondary me-2">{{ getWinner(position.positionId).partyName || 'Independent' }}</span>
-                        <strong>{{ getWinner(position.positionId).voteCount }}</strong> votes
-                        ({{ getVotePercentage(position.positionId, getWinner(position.positionId).candidateId) }}%)
+                      <h3 class="winner-name">
+                        {{ getWinner(position.position_id).name === 'Tie' ? 'It\'s a Tie!' : getWinner(position.position_id).name }}
+                      </h3>
+                      <p class="winner-info mb-0" v-if="getWinner(position.position_id).name !== 'Tie'">
+                        <span class="badge bg-secondary me-2">{{ getWinner(position.position_id).party_name || 'Independent' }}</span>
+                        <strong>{{ getWinner(position.position_id).votes }}</strong> votes
+                        ({{ getWinner(position.position_id).percentage }}%)
+                      </p>
+                      <p class="winner-info mb-0" v-else>
+                        All candidates received <strong>{{ getWinner(position.position_id).votes }}</strong> votes each.
                       </p>
                     </div>
                     <div class="col-md-3 text-center">
                       <div class="vote-percentage">
-                        {{ getVotePercentage(position.positionId, getWinner(position.positionId).candidateId) }}%
+                        {{ getWinner(position.position_id).percentage }}%
                       </div>
                     </div>
                   </div>
@@ -98,7 +104,7 @@
               
               <!-- Vote Chart -->
               <div class="chart-container mb-4">
-                <canvas :id="`chart-${position.positionId}`"></canvas>
+                <canvas :id="`chart-${position.position_id}`"></canvas>
               </div>
               
               <!-- Results Table -->
@@ -114,19 +120,19 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="(candidate, index) in getCandidatesWithResults(position.positionId)" 
+                    <tr v-for="(candidate, index) in getCandidatesWithResults(position.position_id)" 
                         :key="candidate.candidateId"
                         :class="{ 'table-success': index === 0 }">
                       <td>{{ index + 1 }}</td>
                       <td>{{ candidate.name }}</td>
-                      <td>{{ candidate.partyName || 'Independent' }}</td>
-                      <td class="text-center">{{ candidate.voteCount }}</td>
+                      <td>{{ candidate.party_name || 'Independent' }}</td>
+                      <td class="text-center">{{ candidate.votes }}</td>
                       <td class="text-center">
                         <div class="progress">
                           <div class="progress-bar"
                                :class="index === 0 ? 'bg-success' : 'bg-primary'"
-                               :style="`width: ${getVotePercentage(position.positionId, candidate.candidateId)}%`">
-                            {{ getVotePercentage(position.positionId, candidate.candidateId) }}%
+                               :style="`width: ${getVotePercentage(position.position_id, candidate.candidateId)}%`">
+                            {{ getVotePercentage(position.position_id, candidate.candidateId) }}%
                           </div>
                         </div>
                       </td>
@@ -154,6 +160,7 @@
 import { mapActions, mapGetters } from 'vuex'
 import ConnectWallet from '@/components/ConnectWallet.vue'
 import Chart from 'chart.js/auto'
+import api from '@/services/api.js'
 
 export default {
   name: 'ElectionResults',
@@ -194,29 +201,54 @@ export default {
       this.resultsLoaded = false
       
       try {
-        const results = await this.fetchResults(this.electionId)
-        this.results = results
+        const rawResults = await api.getResults(this.electionId)
+        this.results = rawResults.data
+
+
+        // Process results to include candidate details and calculate percentages
+        Object.keys(this.results).forEach(positionId => {
+          const positionResults = this.results[positionId]
+          // console.log("Position Results:", positionResults)
+          const totalVotes = positionResults.reduce((sum, result) => sum + result.votes, 0)
+          // console.log("Total Votes: ", totalVotes)
+
+          this.results[positionId] = positionResults.map(result => {
+            const candidate = this.candidates.find(c => c.candidate_id === result.candidateId)
+            // console.log("Candidate: ", candidate)
+            return {
+              ...result,
+              name: candidate ? candidate.name : 'Unknown Candidate',
+              party_name: candidate ? candidate.party_name : 'Independent',
+              percentage: totalVotes > 0 ? (result.votes / totalVotes) * 100 : 0
+            }
+          })
+          // console.log("Results: ", this.results)
+          return this.results
+        }, {})
+
         this.resultsLoaded = true
-        
+
         // After results are loaded, create charts
         this.$nextTick(() => {
           this.createCharts()
         })
       } catch (error) {
         console.error('Error loading results:', error)
-        this.errorMessage = error.message || 'Failed to load results from the blockchain'
+        this.errorMessage = error.message || 'Failed to load results from the backend'
         this.resultsLoaded = true
       }
-    },
-    getCandidateById(candidateId) {
-      return this.candidates.find(c => c.candidateId === candidateId) || { name: 'Unknown Candidate' }
     },
     getTotalVotesForPosition(positionId) {
       if (!this.results[positionId]) return 0
       
-      return Object.values(this.results[positionId]).reduce((total, candidate) => {
-        return total + candidate.votes
-      }, 0)
+      return this.results[positionId].reduce((total, candidate) => total + candidate.votes, 0)
+    },
+    getCandidateVotes(positionId, candidateId) {
+      if (!this.results[positionId]) return 0
+      
+      const candidateResult = this.results[positionId].find(c => c.candidateId === candidateId)
+      // console.log("CandidatesResult", candidateResult)
+      return candidateResult ? candidateResult.votes : 0
     },
     getVotePercentage(positionId, candidateId) {
       const totalVotes = this.getTotalVotesForPosition(positionId)
@@ -225,31 +257,33 @@ export default {
       const candidateVotes = this.getCandidateVotes(positionId, candidateId)
       return Math.round((candidateVotes / totalVotes) * 100)
     },
-    getCandidateVotes(positionId, candidateId) {
-      if (!this.results[positionId]) return 0
-      
-      const candidateResult = this.results[positionId].find(c => c.candidateId === candidateId)
-      return candidateResult ? candidateResult.votes : 0
-    },
     getCandidatesWithResults(positionId) {
       if (!this.results[positionId]) return []
       
       // Map results to candidates with details
-      const candidatesWithResults = this.results[positionId].map(result => {
-        const candidate = this.getCandidateById(result.candidateId)
-        return {
-          ...candidate,
-          voteCount: result.votes,
-          candidateId: result.candidateId
-        }
-      })
+      const candidatesWithResults = this.results[positionId].map(result => ({
+        ...result,
+      }))
       
       // Sort by vote count descending
-      return candidatesWithResults.sort((a, b) => b.voteCount - a.voteCount)
+      return candidatesWithResults.sort((a, b) => b.votes - a.votes)
     },
     getWinner(positionId) {
       const candidates = this.getCandidatesWithResults(positionId)
       if (candidates.length === 0) return null
+
+      // Check if all candidates have the same number of votes
+      const firstCandidateVotes = candidates[0].votes;
+      const isTie = candidates.every(candidate => candidate.votes === firstCandidateVotes);
+
+      if (isTie) {
+        return {
+          name: 'Tie',
+          party_name: null,
+          votes: firstCandidateVotes,
+          percentage: Math.round((firstCandidateVotes / this.getTotalVotesForPosition(positionId)) * 100)
+        };
+      }
       
       return candidates[0]
     },
@@ -260,16 +294,16 @@ export default {
       
       // For each position, create a chart
       this.election.positions.forEach(position => {
-        const candidates = this.getCandidatesWithResults(position.positionId)
+        const candidates = this.getCandidatesWithResults(position.position_id)
         if (candidates.length === 0) return
         
-        const canvas = document.getElementById(`chart-${position.positionId}`)
+        const canvas = document.getElementById(`chart-${position.position_id}`)
         if (!canvas) return
         
         const ctx = canvas.getContext('2d')
         
         const labels = candidates.map(c => c.name)
-        const data = candidates.map(c => c.voteCount)
+        const data = candidates.map(c => c.votes)
         const backgroundColors = [
           'rgba(75, 192, 192, 0.6)',
           'rgba(54, 162, 235, 0.6)',
@@ -280,7 +314,7 @@ export default {
           'rgba(199, 199, 199, 0.6)'
         ]
         
-        this.charts[position.positionId] = new Chart(ctx, {
+        this.charts[position.position_id] = new Chart(ctx, {
           type: 'bar',
           data: {
             labels: labels,
@@ -365,9 +399,9 @@ export default {
 .position-header:after {
   content: '';
   position: absolute;
-  bottom: 0;
+  bottom: 10px;
   left: 0;
-  width: 50px;
+  width: 100%;
   height: 3px;
   background-color: #6c63ff;
 }

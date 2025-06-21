@@ -1,21 +1,21 @@
 <template>
   <div class="card candidate-card mb-4">
-    <div class="party-badge" :style="{ backgroundColor: partyColor }">
-      {{ candidate.partyName }}
+    <div class="party-badge">
+      {{ candidate.party_name }}
     </div>
     <div class="card-body d-flex">
-      <div class="candidate-img-container me-3">
+      <!-- <div class="candidate-img-container me-3">
         <div class="placeholder-img d-flex align-items-center justify-content-center bg-light">
           <i class="fas fa-user fa-3x text-secondary"></i>
         </div>
-      </div>
+      </div> -->
       <div class="candidate-info">
         <h5 class="card-title">{{ candidate.name }}</h5>
-        <p class="position-title mb-2">{{ candidate.positionTitle }}</p>
+        <p class="position-title mb-2">{{ candidate.party_name.toUpperCase() }}</p>
         <p class="card-text">{{ candidate.bio }}</p>
         
         <div v-if="showActions" class="d-flex justify-content-between mt-3">
-          <button @click="showManifesto" class="btn btn-sm btn-outline-secondary">
+          <button @click="showManifesto(candidate.id)" class="btn btn-sm btn-outline-secondary">
             <i class="fas fa-file-alt me-1"></i>
             View Manifesto
           </button>
@@ -29,7 +29,7 @@
     </div>
     
     <!-- Manifesto Modal -->
-    <div class="modal fade" id="manifestoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" :id="'manifestoModal-' + candidate.id" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
@@ -65,25 +65,10 @@ export default {
       default: false
     }
   },
-  computed: {
-    partyColor() {
-      // Generate a deterministic color based on the party name
-      if (!this.candidate.partyName) return '#6c757d'
-      
-      const partyColors = {
-        'Unity Party': '#4CAF50',
-        'Green Future': '#2196F3',
-        'Student Voice': '#FF9800',
-        'Progress Alliance': '#9C27B0'
-      }
-      
-      return partyColors[this.candidate.partyName] || '#6c757d'
-    }
-  },
   methods: {
-    showManifesto() {
+    showManifesto(candidateId) {
       // Bootstrap modal
-      const modal = new bootstrap.Modal(document.getElementById('manifestoModal'))
+      const modal = new bootstrap.Modal(document.getElementById(`manifestoModal-${candidateId}`))
       modal.show()
     }
   }

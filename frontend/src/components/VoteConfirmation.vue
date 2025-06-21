@@ -36,11 +36,7 @@
             <i class="fas fa-list me-1"></i>
             Back to Elections
           </router-link>
-          
-          <a :href="etherscanLink" target="_blank" class="btn btn-secondary">
-            <i class="fas fa-external-link-alt me-1"></i>
-            View on Etherscan
-          </a>
+
         </div>
       </div>
     </div>
@@ -75,26 +71,12 @@ export default {
   computed: {
     positionTitle() {
       if (!this.election.positions) return 'Unknown Position'
-      const position = this.election.positions.find(p => p.positionId === this.positionId)
+      const position = this.election.positions.find(p => p.id === this.positionId)
       return position ? position.title : 'Unknown Position'
     },
     transactionTime() {
       return new Date().toLocaleString()
     },
-    etherscanLink() {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#') return '#'
-      
-      return `${baseUrl}/tx/${this.transaction.transactionHash}`
-    }
   }
 }
 </script>

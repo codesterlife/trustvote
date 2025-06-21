@@ -48,7 +48,7 @@
             <td>{{ formatDate(election.start_time) }}</td>
             <td>{{ formatDate(election.end_time) }}</td>
             <td>
-              <span v-if="election.contract_address" class="badge bg-success">
+              <span v-if="election.contractAddress" class="badge bg-success">
                 <i class="bi bi-check-circle-fill me-1"></i>
                 Deployed
               </span>
@@ -190,6 +190,7 @@ export default {
       try {
         const response = await apiService.getElections();
         this.elections = response.data;
+        // console.log(response.data)
       } catch (error) {
         console.error('Error fetching elections:', error);
         this.$store.commit('setNotification', {
@@ -201,9 +202,9 @@ export default {
       }
     },
     formatDate(dateString) {
-      if (!dateString) return '';
+      if (!dateString) return 'Invalid Date'; // Return a clear message for missing dates
       const date = new Date(dateString);
-      return date.toLocaleString();
+      return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString(); // Check for invalid date
     },
     formatStatus(status) {
       const statusMap = {
@@ -282,10 +283,6 @@ export default {
     async startVoting(election) {
       try {
         await apiService.updateElectionStatus(election.id, 'voting');
-        
-        // TODO: Update blockchain status as well
-        // This would involve calling the setPhase method on the smart contract
-        
         this.$store.commit('setNotification', {
           message: 'Election status updated to Voting Active',
           type: 'success'
@@ -304,10 +301,6 @@ export default {
     async endVoting(election) {
       try {
         await apiService.updateElectionStatus(election.id, 'closed');
-        
-        // TODO: Update blockchain status as well
-        // This would involve calling the setPhase method on the smart contract
-        
         this.$store.commit('setNotification', {
           message: 'Election status updated to Closed',
           type: 'success'

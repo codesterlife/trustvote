@@ -25,7 +25,7 @@
         <div v-else>
           <!-- Results Chart -->
           <div class="chart-container mb-4">
-            <canvas :id="`chart-${position.positionId}`"></canvas>
+            <canvas :id="`chart-${position.position_id}`"></canvas>
           </div>
           
           <!-- Results Table -->
@@ -44,16 +44,12 @@
                 <tr v-for="(result, index) in sortedResults" :key="result.candidateId">
                   <td>{{ index + 1 }}</td>
                   <td>{{ getCandidateName(result.candidateId) }}</td>
-                  <td>
-                    <span class="party-badge" :style="{ backgroundColor: getPartyColor(result.candidateId) }">
-                      {{ getCandidateParty(result.candidateId) }}
-                    </span>
-                  </td>
+                  <td>{{ getCandidateParty(result.candidateId) }}</td>
                   <td>{{ result.votes }}</td>
                   <td>
                     <div class="progress">
                       <div class="progress-bar" 
-                           :style="{ width: `${result.percentage}%`, backgroundColor: getPartyColor(result.candidateId) }">
+                           :style="{ width: `${result.percentage}%`}">
                         {{ result.percentage.toFixed(1) }}%
                       </div>
                     </div>
@@ -69,7 +65,18 @@
               </tfoot>
             </table>
           </div>
+          <!-- Winner Information -->
+          <div v-if="winners && winners.length > 0" class="alert alert-success mt-3">
+            <strong>Winner{{ winners.length > 1 ? 's' : '' }}:</strong>
+            <ul>
+              <li v-for="winner in winners" :key="winner.candidateId">
+                {{ getCandidateName(winner.candidateId) }} - {{ winner.votes }} votes
+              </li>
+            </ul>
+          </div>
+          <p v-if="winners.length > 1" class="alert alert-warning mt-3"><strong>It's a tie!</strong> You can either proceed with this result or conduct a Runoff Election to find a winner.</p>
         </div>
+
       </div>
     </div>
   </div>
@@ -93,6 +100,10 @@ export default {
       type: Array,
       required: true
     },
+    winners: {
+      type: Array,
+      required: true
+    },
     isLoading: {
       type: Boolean,
       default: false
@@ -100,6 +111,7 @@ export default {
   },
   computed: {
     sortedResults() {
+      // console.log("results", this.results)
       return [...this.results].sort((a, b) => b.votes - a.votes)
     },
     totalVotes() {
@@ -108,30 +120,18 @@ export default {
   },
   methods: {
     getCandidateName(candidateId) {
-      const candidate = this.candidates.find(c => c.candidateId === candidateId)
-      return candidate ? candidate.name : 'Unknown Candidate'
+      // console.log("Candidates: ", this.candidates)
+      const candidate = this.candidates.find(c => c.candidate_id === candidateId)
+      return candidate ? candidate.name : 'Unknown Candidate' 
     },
     getCandidateParty(candidateId) {
-      const candidate = this.candidates.find(c => c.candidateId === candidateId)
-      return candidate ? candidate.partyName : 'Independent'
-    },
-    getPartyColor(candidateId) {
-      const candidate = this.candidates.find(c => c.candidateId === candidateId)
-      if (!candidate || !candidate.partyName) return '#6c757d'
-      
-      const partyColors = {
-        'Unity Party': '#4CAF50',
-        'Green Future': '#2196F3',
-        'Student Voice': '#FF9800',
-        'Progress Alliance': '#9C27B0'
-      }
-      
-      return partyColors[candidate.partyName] || '#6c757d'
+      const candidate = this.candidates.find(c => c.candidate_id === candidateId)
+      return candidate ? candidate.party_name : 'Independent'
     },
     renderChart() {
       if (this.results.length === 0) return
       
-      const ctx = document.getElementById(`chart-${this.position.positionId}`)
+      const ctx = document.getElementById(`chart-${this.position.position_id}`)
       if (!ctx) return
       
       // Destroy existing chart if it exists
@@ -141,7 +141,6 @@ export default {
       
       const labels = this.sortedResults.map(result => this.getCandidateName(result.candidateId))
       const data = this.sortedResults.map(result => result.votes)
-      const backgroundColor = this.sortedResults.map(result => this.getPartyColor(result.candidateId))
       
       this.chart = new Chart(ctx, {
         type: 'bar',
@@ -150,8 +149,6 @@ export default {
           datasets: [{
             label: 'Votes',
             data: data,
-            backgroundColor: backgroundColor,
-            borderColor: backgroundColor,
             borderWidth: 1
           }]
         },

@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, LoginView, UserDetailView, UpdateWalletView,
     UserProfileUpdateView, UserVotesView,
-    ElectionViewSet, CandidateViewSet, PartyViewSet, VoteViewSet, VoterViewSet
+    ElectionViewSet, CandidateViewSet, PartyViewSet, VoteViewSet, VoterViewSet, ElectoralRollViewSet
 )
 
 # Create a router and register viewsets
@@ -11,6 +11,7 @@ router = DefaultRouter()
 router.register(r'elections', ElectionViewSet)
 router.register(r'candidates', CandidateViewSet)
 router.register(r'parties', PartyViewSet)
+router.register(r'electoral-roll', ElectoralRollViewSet, basename='electoral-roll')
 router.register(r'votes', VoteViewSet)
 router.register(r'voters', VoterViewSet)
 

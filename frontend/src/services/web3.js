@@ -3,7 +3,7 @@ import ElectionFactoryABI from '../contracts/ElectionFactory.json'
 import ElectionABI from '../contracts/Election.json'
 
 // Contract addresses (to be set during deployment)
-const ELECTION_FACTORY_ADDRESS = process.env.VUE_APP_ELECTION_FACTORY_ADDRESS || ''
+const ELECTION_FACTORY_ADDRESS = process.env.VUE_APP_ELECTION_FACTORY_ADDRESS
 
 const web3Service = {
   /**
@@ -15,8 +15,12 @@ const web3Service = {
       const web3 = new Web3(window.ethereum)
       
       try {
+        // Wait for provider to be ready
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
         // Get network ID
         const networkId = await web3.eth.net.getId()
+        // console.log('Connected to network:', networkId)
         
         // Check if already authorized
         const accounts = await window.ethereum.request({
@@ -34,7 +38,15 @@ const web3Service = {
         return { web3, networkId }
       } catch (error) {
         console.error('Error initializing Web3:', error)
-        return {}
+        // Check if MetaMask is locked
+        if (error.code === -32002) {
+          throw new Error('Please unlock your MetaMask wallet')
+        }
+        // Check if user rejected request
+        if (error.code === 4001) {
+          throw new Error('Please connect your MetaMask wallet')
+        }
+        throw error
       }
     } else {
       console.log('MetaMask not detected')
@@ -83,6 +95,10 @@ const web3Service = {
       throw new Error('Web3 not initialized')
     }
     
+    if (!ELECTION_FACTORY_ADDRESS) {
+      throw new Error('Election factory contract address not configured')
+    }
+    
     try {
       return new web3.eth.Contract(
         ElectionFactoryABI.abi,
@@ -116,41 +132,106 @@ const web3Service = {
   /**
    * Deploy a new Election contract via the ElectionFactory
    */
-  async deployElectionContract(web3, factoryContract, electionData, fromAddress) {
-    if (!web3 || !factoryContract) {
-      throw new Error('Web3 or ElectionFactory contract not initialized')
-    }
-    
+  async deployElectionContract(web3, factoryContract, formattedData, account) {
+    // console.log('received data from Vuex to Web3Service - formattedData: ', formattedData );
     try {
-      // Convert election data to format expected by the contract
-      const startTime = Math.floor(new Date(electionData.startTime).getTime() / 1000)
-      const endTime = Math.floor(new Date(electionData.endTime).getTime() / 1000)
-      
-      // Get contract positions as array of ids
-      const positionIds = electionData.positions.map(p => p.positionId)
-      
-      // Create election via factory
-      const result = await factoryContract.methods.createElection(
-        electionData.title,
-        startTime,
-        endTime,
-        positionIds
-      ).send({ from: fromAddress })
-      
-      // Get the address of the deployed election contract
-      const electionAddress = result.events.ElectionCreated.returnValues.electionAddress
-      
-      // Get the new election contract instance
-      const electionContract = await this.getElectionContract(web3, electionAddress)
-      
-      return {
-        contract: electionContract,
-        address: electionAddress,
-        transaction: result
-      }
+        // // Validate and convert position IDs to numbers
+        // const positionIds = (electionData.positions || []).map(id => {
+        //     const num = Number(id);
+        //     if (isNaN(num) || num <= 0) {
+        //         throw new Error(`Invalid position ID: ${id}`);
+        //     }
+        //     return num;
+        // });
+
+        const params = {
+            title: String(formattedData.title),
+            startTime: Number(formattedData.start_time),
+            endTime: Number(formattedData.end_time),
+            positions: formattedData.positions.map(pos => pos.positionId)
+        };
+
+        // console.log("Position data length retreived from the params: ", params.positions.length)
+        // console.log("Position data retreived from the params: ", params.positions)
+        // console.log("Extracting position ids from the data received: ", params.positions)
+
+        // Debug logging
+        // console.log('Creating election with params:', params);
+        // console.log('Original election data:', electionData);
+
+        // Validate required data
+        if (!params.title) {
+            throw new Error('Election title is required');
+        }
+        if (!params.positions.length) {
+            throw new Error('At least one position is required');
+        }
+        if (params.endTime <= params.startTime) {
+            throw new Error('End time must be after start time');
+        }
+
+        // Send transaction
+        const tx = await factoryContract.methods.createElection(
+            params.title,
+            params.startTime,
+            params.endTime,
+            params.positions // Pass only the positionId values
+        ).send({ 
+            from: account,
+            gas: 5000000
+        });
+
+        // Debug transaction receipt
+        // console.log('Transaction receipt:', tx);
+        if (!tx.status) {
+          throw new Error('Transaction failed or was reverted');
+        }
+        // console.log('Transaction events:', tx.events);
+
+        // Safely access the event
+        const electionEvent = tx.events?.ElectionCreated;
+        if (!electionEvent) {
+            throw new Error('ElectionCreated event not found in transaction receipt');
+        }
+
+        const contractAddress = electionEvent.returnValues.electionAddress;
+
+        if (!web3.utils.isAddress(contractAddress)) {
+          throw new Error('Invalid contract address');
+        }
+
+        // console.log('Contract deployed successfully at:', contractAddress);
+
+        // Update the backend with the contract address
+        // const response = await apiClient.patch(`/elections/${formattedData.electionId}/update_contract_address/`, {
+        //     address: contractAddress
+        // });
+
+      // console.log('Backend updated with contract address:', response.data);
+
+        // Create contract instance
+        const electionContract = new web3.eth.Contract(
+            ElectionABI.abi,
+            contractAddress
+        );
+
+        return {
+            contract: electionContract,
+            address: contractAddress,
+            backendData: {
+                address: contractAddress,
+                title: params.title,
+                description: formattedData.description,
+                startTime: params.startTime,
+                endTime: params.endTime,
+                positions: formattedData.positions,
+                status: 'Init',
+                // electionId: formattedData.electionId //included election id
+            }
+        };
     } catch (error) {
-      console.error('Error deploying election contract:', error)
-      throw error
+        console.error('Deployment error:', error);
+        throw error;
     }
   },
   
@@ -163,11 +244,13 @@ const web3Service = {
     }
     
     try {
+      console.log('Calling addCandidate with:', { candidateId, positionId, fromAddress }); // Debug log
       const result = await electionContract.methods.addCandidate(
         candidateId,
         positionId
       ).send({ from: fromAddress })
       
+      console.log('Candidate added to contract successfully:', result); // Debug log
       return result
     } catch (error) {
       console.error('Error adding candidate to contract:', error)
@@ -219,20 +302,25 @@ const web3Service = {
   /**
    * Get election results from the contract
    */
-  async getElectionResults(electionContract) {
+  async getElectionResults(electionContract) { //NOTE: Avoided using this function. Instead pulled data from the backend directly.
     if (!electionContract) {
       throw new Error('Election contract not initialized')
     }
     
     try {
       // First get the position IDs
+      console.log("Election contract received at Web.js", electionContract)
       const positionCount = await electionContract.methods.getPositionCount().call()
+      console.log("Positions Count: ", positionCount)
       const positions = []
       
       for (let i = 0; i < positionCount; i++) {
         const positionId = await electionContract.methods.positionIds(i).call()
+        console.log("position IDs: ", positionId)
         positions.push(parseInt(positionId))
       }
+
+      console.log("Positions: ", positions)
       
       // For each position, get the candidates and their vote counts
       const results = {}
@@ -243,17 +331,21 @@ const web3Service = {
         
         for (let i = 0; i < candidateCount; i++) {
           const candidateId = await electionContract.methods.getPositionCandidate(positionId, i).call()
+          console.log("Candidate Ids: ", candidateId)
           const votes = await electionContract.methods.getCandidateVotes(positionId, candidateId).call()
+          console.log("Votes: ", votes)
           
           positionResults.push({
             candidateId: parseInt(candidateId),
             votes: parseInt(votes)
           })
+          console.log("Position Results: ", positionResults)
         }
         
         results[positionId] = positionResults
+
       }
-      
+      console.log(results)      
       return results
     } catch (error) {
       console.error('Error getting election results:', error)
@@ -264,7 +356,17 @@ const web3Service = {
   /**
    * Set the election phase in the contract
    */
-  async setElectionPhase(electionContract, phase, fromAddress) {
+  async validatePositionsHaveCandidates(electionContract) {
+    const positionCount = await electionContract.methods.getPositionCount().call();
+    for (let i = 0; i < positionCount; i++) {
+      const candidateCount = await electionContract.methods.getCandidateCount(i).call();
+      if (candidateCount === 0) {
+        throw new Error(`Position ${i} does not have any candidates.`);
+      } //NOTE: Continue here.
+    }
+  },
+
+  async setElectionPhase(electionContract, phase, fromAddress) { 
     if (!electionContract) {
       throw new Error('Election contract not initialized')
     }

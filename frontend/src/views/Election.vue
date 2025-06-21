@@ -27,12 +27,10 @@
           <div v-if="election.contract_address" class="blockchain-badge">
             <i class="bi bi-link-45deg"></i>
             On Blockchain
-            <a :href="'https://etherscan.io/address/' + election.contract_address" 
-               target="_blank"
-               class="ms-1 contract-link">
-              {{ shortenAddress(election.contract_address) }}
+            <span class="ms-1 contract-link">
+              {{ shortenAddress(election.contractAddress) }}
               <i class="bi bi-box-arrow-up-right"></i>
-            </a>
+            </span>
           </div>
         </div>
       </div>
@@ -49,13 +47,13 @@
                   <div class="col-md-6">
                     <div class="date-item">
                       <div class="date-label">Start Time:</div>
-                      <div class="date-value">{{ formatDateTime(election.start_time) }}</div>
+                      <div class="date-value">{{ formatDateTime(election.startTime) }}</div>
                     </div>
                   </div>
                   <div class="col-md-6">
                     <div class="date-item">
                       <div class="date-label">End Time:</div>
-                      <div class="date-value">{{ formatDateTime(election.end_time) }}</div>
+                      <div class="date-value">{{ formatDateTime(election.endTime) }}</div>
                     </div>
                   </div>
                 </div>
@@ -71,7 +69,7 @@
                 <h5 class="mb-0">{{ position.title }}</h5>
                 <router-link 
                   v-if="election.status === 'voting' && canVote" 
-                  :to="{ name: 'VotingBooth', params: { electionId: election.id, positionId: position.id } }"
+                  :to="{ name: 'VotingBooth', params: { electionId: election.electionId, positionId: position.id } }"
                   class="btn btn-primary btn-sm">
                   Vote for this Position
                 </router-link>
@@ -87,7 +85,7 @@
                 <div v-else class="position-candidates">
                   <div class="row">
                     <div v-for="candidate in position.candidates" 
-                         :key="candidate.id" 
+                         :key="candidate.candidateId" 
                          class="col-md-6 mb-3">
                       <div class="candidate-summary d-flex align-items-center p-3 border rounded">
                         <div class="candidate-photo">
@@ -162,7 +160,7 @@
                   <p class="mb-2">Ready to vote?</p>
                   <router-link 
                     v-if="positions.length > 0"
-                    :to="{ name: 'VotingBooth', params: { electionId: election.id, positionId: positions[0].id } }"
+                    :to="{ name: 'VotingBooth', params: { electionId: election.electionId, positionId: positions[0].id } }"
                     class="btn btn-success w-100">
                     Start Voting Now
                   </router-link>
@@ -176,7 +174,7 @@
               <h5 class="card-title">Election Results</h5>
               <p>This election has ended. You can view the final results.</p>
               <router-link 
-                :to="{ name: 'Results', params: { id: election.id } }"
+                :to="{ name: 'Results', params: { id: election.electionId } }"
                 class="btn btn-primary w-100">
                 View Results
               </router-link>
@@ -234,8 +232,8 @@ export default {
       if (!this.election) return '';
       
       const now = new Date();
-      const endTime = new Date(this.election.end_time);
-      const startTime = new Date(this.election.start_time);
+      const endTime = new Date(this.election.endTime);
+      const startTime = new Date(this.election.startTime);
       
       if (this.election.status === 'closed' || now > endTime) {
         return 'Election has ended';

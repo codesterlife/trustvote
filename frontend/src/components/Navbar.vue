@@ -12,7 +12,7 @@
       
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav me-auto">
-          <li class="nav-item">
+          <li class="nav-item" v-if="isLoggedIn">
             <router-link class="nav-link" to="/">Home</router-link>
           </li>
           <li class="nav-item" v-if="isLoggedIn">
@@ -20,7 +20,7 @@
           </li>
           <li class="nav-item" v-if="isLoggedIn">
             <router-link class="nav-link" to="/profile">
-              <i class="fas fa-user-circle me-1"></i>Profile
+              <i class="fas fa-user-circle me-1"></i>{{ isAdmin ? 'Admin' : currentUser.first_name }}'s Profile
             </router-link>
           </li>
           <li class="nav-item" v-if="isAdmin">
@@ -70,7 +70,7 @@ import { mapGetters, mapActions } from 'vuex'
 export default {
   name: 'Navbar',
   computed: {
-    ...mapGetters(['isLoggedIn', 'isAdmin', 'walletAddress']),
+    ...mapGetters(['isLoggedIn', 'isAdmin', 'walletAddress', 'currentUser']),
     truncatedWalletAddress() {
       if (!this.walletAddress) return ''
       return this.walletAddress.slice(0, 6) + '...' + this.walletAddress.slice(-4)

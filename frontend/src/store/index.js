@@ -1,6 +1,7 @@
 import { createStore } from 'vuex'
 import api from '@/services/api'
 import web3Service from '@/services/web3'
+import router from '@/router'
 
 export default createStore({
   state: {
@@ -16,6 +17,7 @@ export default createStore({
     elections: [],
     currentElection: null,
     candidates: [],
+    parties: [],
     voters: [],
     loading: false,
     error: null,
@@ -33,9 +35,11 @@ export default createStore({
     pastElections: state => state.elections.filter(e => 
       e.status === 'Closed' || new Date(e.endTime) < new Date()),
     candidates: state => state.candidates,
+    allParties: state => state.parties,
     currentElection: state => state.currentElection,
     isConnected: state => !!state.web3 && !!state.wallet,
-    networkId: state => state.networkId
+    networkId: state => state.networkId,
+    voters: state => state.voters
   },
   mutations: {
     SET_USER(state, user) {
@@ -68,6 +72,9 @@ export default createStore({
     SET_CANDIDATES(state, candidates) {
       state.candidates = candidates
     },
+    SET_PARTIES(state, parties) {
+      state.parties = parties
+    },
     SET_VOTERS(state, voters) {
       state.voters = voters
     },
@@ -79,6 +86,12 @@ export default createStore({
     },
     CLEAR_ERROR(state) {
       state.error = null
+    },
+    UPDATE_ELECTION_STATUS(state, { electionId, status }) {
+      const election = state.elections.find(e => e.electionId === electionId);
+      if (election) {
+        election.status = status;
+      }
     }
   },
   actions: {
@@ -87,6 +100,14 @@ export default createStore({
       try {
         commit('SET_LOADING', true)
         const response = await api.register(userData)
+        
+        // Save token to localStorage immediately after registration
+        if (response.data && response.data.token) {
+          console.log("User registered Successfully.")
+          localStorage.setItem('token', response.data.token)
+          commit('SET_USER', response.data.user)
+        }
+        
         commit('SET_LOADING', false)
         return response.data
       } catch (error) {
@@ -99,10 +120,23 @@ export default createStore({
       try {
         commit('SET_LOADING', true)
         const response = await api.login(credentials)
-        const user = response.data
-        commit('SET_USER', user)
+        if (response)
+          console.log("User logged in Successfully.")
+          window.location.href = "/"
+        
+        // Extract token and user from response data
+        const { token, user } = response.data
+        
+        // Save token to localStorage
+        if (token) {
+          localStorage.setItem('token', token)
+          commit('SET_USER', user)
+        } else {
+          throw new Error('No token received from server')
+        }
+        
         commit('SET_LOADING', false)
-        return user
+        return response.data
       } catch (error) {
         commit('SET_LOADING', false)
         commit('SET_ERROR', error.response?.data || 'Login failed')
@@ -119,6 +153,7 @@ export default createStore({
         
         // After connecting to wallet, initialize contracts
         await dispatch('initContracts')
+        window.location.reload(true)
         
         commit('SET_LOADING', false)
         return address
@@ -137,6 +172,9 @@ export default createStore({
             commit('SET_WALLET', address)
             commit('SET_NETWORK_ID', networkId)
             await dispatch('initContracts')
+            
+            // Start the election phase watcher
+            dispatch('startElectionPhaseWatcher');
           }
         } catch (error) {
           console.error('Web3 initialization error:', error)
@@ -168,9 +206,19 @@ export default createStore({
       }
     },
     async logout({ commit }) {
+      // Clear auth data
       localStorage.removeItem('token')
+      
+      // Reset store state
       commit('SET_USER', null)
       commit('SET_WALLET', null)
+      commit('SET_ELECTIONS', [])
+      commit('SET_CURRENT_ELECTION', null)
+      commit('SET_CANDIDATES', [])
+      commit('SET_VOTERS', [])
+      
+      // Handle navigation
+      await router.push('/elections')
     },
     
     // Election actions
@@ -178,6 +226,8 @@ export default createStore({
       try {
         commit('SET_LOADING', true)
         const response = await api.getElections()
+        if (response)
+          console.log('Received Election Data received from the backend successfully. ', response.data)
         commit('SET_ELECTIONS', response.data)
         commit('SET_LOADING', false)
       } catch (error) {
@@ -189,11 +239,13 @@ export default createStore({
       try {
         commit('SET_LOADING', true)
         const response = await api.getElection(id)
+        console.log("Election data for ID: ", id, " received from backend successfully. ", response.data)
         commit('SET_CURRENT_ELECTION', response.data)
         
         // Also fetch candidates for this election
         const candidatesResponse = await api.getCandidatesByElection(id)
-        commit('SET_CANDIDATES', candidatesResponse.data)
+        console.log("Candidates Data received from Backend successfully. ", candidatesResponse)
+        commit('SET_CANDIDATES', candidatesResponse.data) 
         
         commit('SET_LOADING', false)
       } catch (error) {
@@ -201,42 +253,68 @@ export default createStore({
         commit('SET_ERROR', error.response?.data || 'Failed to fetch election details')
       }
     },
-    async createElection({ commit, state, dispatch }, electionData) {
+    async createElection({ commit, state, dispatch }, formattedData) {
       try {
-        commit('SET_LOADING', true)
+        commit('SET_LOADING', true);
         
-        // First, deploy the smart contract for this election
-        const { contract, address } = await web3Service.deployElectionContract(
-          state.web3,
-          state.contracts.electionFactory,
-          electionData,
-          state.wallet
-        )
+        if (!state.web3 || !state.contracts.electionFactory || !state.wallet) {
+            throw new Error('Web3 or contracts not initialized');
+        }
+
+        // console.log('Data being sent from Vuex to Web3Service - formattedData:', formattedData);
         
-        // Store the contract address in the election data
-        electionData.contract_address = address
+        // Deploy the smart contract
+        const deployResult = await web3Service.deployElectionContract(
+            state.web3,
+            state.contracts.electionFactory,
+            formattedData,
+            state.wallet
+        );
+
+        if (!deployResult || !deployResult.address) {
+            throw new Error('Failed to deploy election contract');
+        }
+        else {
+          console.log("Election Deployed to Blockchain Successfully. ", deployResult)
+        }
+
+        // Save the election in the backendata
+        // console.log('Data being sent from Web3Service to API - backendData: ', deployResult.backendData)
+
+        const response = await api.createElection(deployResult.backendData);
+        if (response)
+          console.log('Election Saved in the backend Successfully. ', response.data)
         
-        // Then, save the election in the backend
-        const response = await api.createElection(electionData)
+        // Register the new contract
+        commit('SET_CONTRACT', { 
+            name: deployResult.address, 
+            contract: deployResult.contract 
+        });
         
-        // Register the new contract in the store
-        commit('SET_CONTRACT', { name: address, contract })
+        // Refresh elections list
+        await dispatch('fetchElections');
+
+        // Start the phase watcher again to include the new election
+        dispatch('startElectionPhaseWatcher');
         
-        // Refresh the elections list
-        await dispatch('fetchElections')
+        commit('SET_LOADING', false);
+        return response.data;
         
-        commit('SET_LOADING', false)
-        return response.data
       } catch (error) {
-        commit('SET_LOADING', false)
-        commit('SET_ERROR', error.response?.data || error.message || 'Failed to create election')
-        throw error
+        commit('SET_LOADING', false);
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to create election';
+        commit('SET_ERROR', errorMessage);
+        throw error;
       }
     },
-    async updateElection({ commit, dispatch }, { id, data }) {
+    async updateElection({ commit, state, dispatch }, { id, data },) {
       try {
         commit('SET_LOADING', true)
+        const electionContractAddress = state.elections[0].contractAddress
+        data.contract_address = electionContractAddress
         const response = await api.updateElection(id, data)
+        if (response)
+          console.log("Election updated in the backend Successfully. ", response)
         
         // Refresh the elections list
         await dispatch('fetchElections')
@@ -255,6 +333,8 @@ export default createStore({
       try {
         commit('SET_LOADING', true)
         const response = await api.getCandidates()
+        if (response)
+          console.log("Candidates data received from the backend succesfully. ", response.data)
         commit('SET_CANDIDATES', response.data)
         commit('SET_LOADING', false)
       } catch (error) {
@@ -262,25 +342,65 @@ export default createStore({
         commit('SET_ERROR', error.response?.data || 'Failed to fetch candidates')
       }
     },
+
+    async fetchParties({ commit }) {
+      try {
+        commit('SET_LOADING', true)
+        const response = await api.getParties() // Ensure `getParties` is defined in your API service
+        commit('SET_PARTIES', response.data)
+        commit('SET_LOADING', false)
+      } catch (error) {
+        commit('SET_LOADING', false)
+        commit('SET_ERROR', error.response?.data || 'Failed to fetch parties')
+      }
+    },
+
     async createCandidate({ commit, dispatch, state }, candidateData) {
+
+      const { electionId, candidateId, positionId } = candidateData;
+
+      await dispatch('fetchElection', electionId);
+      console.log('Candidate Data:', candidateData); // Debug log
+      console.log('Election ID:', electionId);
+      console.log('Candidate ID:', candidateId);
+      console.log('Position ID:', positionId);
+
       try {
         commit('SET_LOADING', true)
         
         // Add candidate to the election contract
-        if (state.currentElection && state.currentElection.contract_address) {
-          const electionContract = state.contracts.elections[state.currentElection.contract_address]
+        if (state.currentElection && state.currentElection.contractAddress) {
+
+          const electionContract = await web3Service.getElectionContract(
+              state.web3,
+              state.currentElection.contractAddress
+            )
+
           if (electionContract) {
-            await web3Service.addCandidateToContract(
+
+            console.log('Adding candidate to contract:', { candidateId, positionId }); // Debug log
+
+            const deployCandidate = await web3Service.addCandidateToContract(
               electionContract,
-              candidateData.candidateId,
-              candidateData.positionId,
+              candidateId,
+              positionId,
               state.wallet
             )
+            if (!deployCandidate || !deployCandidate.transactionHash) {
+              throw new Error('Failed to add Candidate to Contract');
+            }
+            else {
+              console.log("Candidate deployed to contract successfully. ", deployCandidate)
+            }
           }
+          
         }
         
         // Save candidate in the backend
+        // console.log("Candidate Data being sent from Vuex to API: candidateData", candidateData)
         const response = await api.createCandidate(candidateData)
+        if (response)
+          console.log("Candidate Saved in the backend successfully. ", response.data)
         
         // Refresh the candidates list
         await dispatch('fetchCandidates')
@@ -293,12 +413,38 @@ export default createStore({
         throw error
       }
     },
+
+    async updateCandidate({ commit, dispatch, state }, { id, data }) {
+      try {
+        commit('SET_LOADING', true);
+    
+        // console.log("Candidate Data in the state", [...state.candidates])
+    
+        // Update candidate in the backend
+        // console.log("Candidate ID: ", id)
+        // console.log("Candidate Data being sent from Vuex to API for update: data", data);
+        const response = await api.updateCandidate(id, data);
+        console.log("Candidate updated in the backend successfully. ", response.data);
+    
+        // Refresh the candidates list
+        await dispatch('fetchCandidates');
+    
+        commit('SET_LOADING', false);
+        return response.data;
+      } catch (error) {
+        commit('SET_LOADING', false);
+        commit('SET_ERROR', error.response?.data || error.message || 'Failed to update candidate');
+        throw error;
+      }
+    },
     
     // Voter actions
     async fetchVoters({ commit }) {
       try {
         commit('SET_LOADING', true)
-        const response = await api.getVoters()
+        const response = await api.getVoters();
+        if (response)
+          console.log("Voters data received from backend successfully. ", response.data)
         commit('SET_VOTERS', response.data)
         commit('SET_LOADING', false)
       } catch (error) {
@@ -306,25 +452,36 @@ export default createStore({
         commit('SET_ERROR', error.response?.data || 'Failed to fetch voters')
       }
     },
-    async whitelistVoter({ commit, state }, { electionId, voterAddress }) {
+    async whitelistVoter({ commit, state }, { electionId, voterAddress}) {
       try {
+        // console.log("Whitelist data received at vuex", { electionId, voterAddress })
         commit('SET_LOADING', true)
-        
+        console.log("Whitelist payload:", { electionId, voterAddress})
+
         // First find the election
         const election = state.elections.find(e => e.electionId === electionId)
-        if (election && election.contract_address) {
-          const electionContract = state.contracts.elections[election.contract_address]
-          
+        if (election && election.contractAddress) {
+          // const electionContract = state.contracts.elections[election.contractAddress] //NOTE: this does not work so loading election contract dynamically.
+          const electionContract = await web3Service.getElectionContract(
+            state.web3,
+            election.contractAddress
+          );
+          // console.log("Election Contract: ", electionContract)
+          // console.log("Wallet: ", state.wallet)
           if (electionContract) {
             // Whitelist the voter in the contract
-            await web3Service.whitelistVoter(
-              electionContract,
-              voterAddress,
-              state.wallet
-            )
+            const whitelistResponse = await web3Service.whitelistVoter(
+                electionContract,
+                voterAddress,
+                state.wallet
+              )
+            console.log("Voter whitelisted for ",election.title," in the contract successfully. ", whitelistResponse)
             
             // Also update in backend
-            await api.whitelistVoter(electionId, voterAddress)
+            const backendResponse = await api.whitelistVoter(electionId, voterAddress)
+            if (backendResponse)
+              console.log("Voter whitelisted for ",election.title," in the backend successfully. ", backendResponse.data.message)
+              window.location.href = "/admin/voters"
           }
         }
         
@@ -344,19 +501,33 @@ export default createStore({
         
         // Find the election
         const election = state.elections.find(e => e.electionId === electionId)
-        if (!election || !election.contract_address) {
+        if (!election || !election.contractAddress) {
           throw new Error('Election not found or invalid')
         }
+
+        console.log("election in state: ", election)
+
+        console.log("position ID", positionId)
+
+        // Find the Candidate
+        const candidates = await api.getCandidatesByElection(electionId)
+
+        console.log("candidates: ", candidates)
+
+        const candidate_id = candidates.data.find(item => item.candidate_id === candidateId).id
         
+        console.log("Candidate ID: ", candidate_id)
+
         // Get the election contract
-        let electionContract = state.contracts.elections[election.contract_address]
+        let electionContract = state.contracts.elections[election.contractAddress]
         if (!electionContract) {
           // If not already loaded, load it now
           electionContract = await web3Service.getElectionContract(
             state.web3,
-            election.contract_address
+            election.contractAddress
           )
-          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
+          console.log("Election Contract received Successfully. ", electionContract)
+          commit('SET_CONTRACT', { name: election.contractAddress, contract: electionContract })
         }
         
         // Cast the vote via the smart contract
@@ -366,15 +537,20 @@ export default createStore({
           candidateId,
           state.wallet
         )
+        console.log("Vote Casted via the smart contract successfully. ", tx)
         
         // Record the vote in the backend as well
-        await api.recordVote({
-          electionId,
-          positionId,
-          candidateId,
+
+
+        const recordVoteResponse = await api.recordVote({
+          election: electionId,
+          position: positionId,
+          candidate: candidate_id,
           wallet: state.wallet,
-          transactionHash: tx.transactionHash
+          transaction_hash: tx.transactionHash
         })
+        if (recordVoteResponse)
+          console.log("Vote Recorded in the backend Successfully. ", recordVoteResponse.data)
         
         commit('SET_LOADING', false)
         return tx
@@ -391,24 +567,26 @@ export default createStore({
         commit('SET_LOADING', true)
         
         // Find the election
+        // console.log(state.elections[0])
         const election = state.elections.find(e => e.electionId === electionId)
-        if (!election || !election.contract_address) {
+        // console.log(election.contractAddress)
+        if (!election || !election.contractAddress) {
           throw new Error('Election not found or invalid')
         }
         
         // Get the election contract
-        let electionContract = state.contracts.elections[election.contract_address]
-        if (!electionContract) {
-          electionContract = await web3Service.getElectionContract(
+        const electionContract = await web3Service.getElectionContract(
             state.web3,
-            election.contract_address
+            election.contractAddress
           )
-          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
-        }
+        console.log("Election Contract received Successfully. ", electionContract)
+        commit('SET_CONTRACT', { name: election.contractAddress, contract: electionContract })
         
         // Get results from the contract
-        const results = await web3Service.getElectionResults(electionContract)
-        
+        const contract = await web3Service.getElectionResults(electionContract)
+        if (contract)
+          console.log("Election result received from the contract successfully. ", contract)
+
         commit('SET_LOADING', false)
         return results
       } catch (error) {
@@ -422,33 +600,44 @@ export default createStore({
     async updateElectionPhase({ commit, state }, { electionId, phase }) {
       try {
         commit('SET_LOADING', true)
-        
+        // console.log("electionId from state: ", state.elections.find(e => e.electionId === electionId))
         // Find the election
         const election = state.elections.find(e => e.electionId === electionId)
-        if (!election || !election.contract_address) {
+        if (!election || !election.contractAddress) {
           throw new Error('Election not found or invalid')
         }
         
         // Get the election contract
-        let electionContract = state.contracts.elections[election.contract_address]
+        let electionContract = state.contracts.elections[election.contractAddress]
         if (!electionContract) {
           electionContract = await web3Service.getElectionContract(
             state.web3,
-            election.contract_address
+            election.contractAddress
           )
-          commit('SET_CONTRACT', { name: election.contract_address, contract: electionContract })
+          console.log("Election Contract received Successfully. ", electionContract)
+
+          commit('SET_CONTRACT', { name: election.contractAddress, contract: electionContract })
         }
         
         // Update the phase in the contract
-        await web3Service.setElectionPhase(
+        const setElectionPhase = await web3Service.setElectionPhase(
           electionContract,
           phase,
           state.wallet
         )
-        
+        if (setElectionPhase)
+          console.log('Election Phase updated in the contract successfully. ', setElectionPhase);
+
         // Update in backend as well
-        await api.updateElectionPhase(electionId, phase)
-        
+        const response = await api.updateElectionPhase(electionId, phase)
+
+        if (response)
+          console.log("Election Phase updated in the backend successfully. ", response)
+          window.location.reload()
+
+        // Update the election status in Vuex state
+        commit('UPDATE_ELECTION_STATUS', { electionId, status: phase });
+
         commit('SET_LOADING', false)
         return true
       } catch (error) {
@@ -456,6 +645,57 @@ export default createStore({
         commit('SET_ERROR', error.message || 'Failed to update election phase')
         throw error
       }
+    },
+    async startElectionPhaseWatcher({ state, dispatch }) {
+      for (const election of state.elections) {
+        const now = new Date();
+    
+        // Schedule transition to "Voting" phase
+        if (election.startTime && new Date(election.startTime) > now && election.status === 'Init') {
+          const timeUntilStart = new Date(election.startTime) - now;
+          setTimeout(async () => {
+            console.log(`Updating phase for election: ${election.title} to "Voting"`);
+            try {
+              // Ensure all positions have candidates before transitioning
+              const candidates = await api.getCandidatesByElection(election.electionId);
+              if (!candidates || candidates.length === 0) {
+                throw new Error('All positions must have at least one candidate');
+              }
+              await dispatch('updateElectionPhase', { electionId: election.electionId, phase: 'Voting' });
+            } catch (error) {
+              console.error(`Failed to update phase for election: ${election.title}`, error);
+            }
+          }, timeUntilStart);
+        }
+    
+        // Schedule transition to "Closed" phase
+        if (election.endTime && new Date(election.endTime) > now && election.status === 'Voting') {
+          const timeUntilEnd = new Date(election.endTime) - now;
+          setTimeout(async () => {
+            console.log(`Updating phase for election: ${election.title} to "Closed"`);
+            try {
+              await dispatch('updateElectionPhase', { electionId: election.electionId, phase: 'Closed' });
+            } catch (error) {
+              console.error(`Failed to update phase for election: ${election.title}`, error);
+            }
+          }, timeUntilEnd);
+        }
+      }
+    },
+    async fetchElectoralRoll({ commit }, electionId) {
+      // console.log("Fetching electoral roll for electionId:", electionId);
+      const response = await api.getElectoralRoll(electionId)
+      console.log("Electoral Roll: ", response)
+      return response.data
+    },
+    async addElectoralRollEntry({ commit }, entry) {
+      await api.addElectoralRollEntry(entry)
+    },
+    async updateElectoralRollEntry({ commit }, entry) {
+      await api.updateElectoralRollEntry(entry)
+    },
+    async deleteElectoralRollEntry({ commit }, entryId) {
+      await api.deleteElectoralRollEntry(entryId)
     }
   }
 })

@@ -95,12 +95,11 @@
                 <i class="fab fa-ethereum fa-3x mb-2 text-primary"></i>
                 <p class="mb-1"><strong>Blockchain Contract:</strong></p>
                 <a 
-                  v-if="selectedElection.contract_address" 
-                  :href="getEtherscanLink(selectedElection.contract_address)" 
+                  v-if="selectedElection.contractAddress" 
                   target="_blank" 
                   class="contract-link"
                 >
-                  {{ truncateAddress(selectedElection.contract_address) }}
+                  {{ truncateAddress(selectedElection.contractAddress) }}
                   <i class="fas fa-external-link-alt ms-1"></i>
                 </a>
                 <p v-else class="text-muted">No contract deployed</p>
@@ -123,11 +122,13 @@
       
       <div v-else>
         <!-- Results For Each Position -->
-        <div v-for="position in selectedElection.positions" :key="position.positionId" class="mb-5">
+        <div v-for="position in selectedElection.positions" :key="position.id" class="mb-5">
+          <!-- {{ console.log("Position ID", position.id) }} -->
           <ResultDisplay 
             :position="position"
             :candidates="filteredCandidates"
-            :results="getResultsForPosition(position.positionId)"
+            :results="getResultsForPosition(position.position_id)"
+            :winners="getResultsForPosition(position.position_id).winners"
             :isLoading="loadingResults"
           />
         </div>
@@ -140,6 +141,7 @@
 import { mapActions, mapGetters } from 'vuex'
 import ConnectWallet from '@/components/ConnectWallet.vue'
 import ResultDisplay from '@/components/ResultDisplay.vue'
+import api from '@/services/api.js'
 
 export default {
   name: 'ResultsView',
@@ -163,7 +165,9 @@ export default {
     },
     filteredCandidates() {
       if (!this.selectedElectionId) return []
-      return this.candidates.filter(c => c.electionId === this.selectedElectionId)
+      // console.log("Candidates:", this.candidates)
+      // console.log("election ID ", this.selectedElectionId)
+      return this.candidates.filter(c => c.election === this.selectedElectionId)
     },
     hasResults() {
       return Object.keys(this.resultsData).length > 0 &&
@@ -171,7 +175,7 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['fetchElections', 'fetchCandidates', 'fetchResults']),
+    ...mapActions(['fetchElections', 'fetchCandidates']),
     formatDateTime(dateTimeStr) {
       const date = new Date(dateTimeStr)
       return date.toLocaleString()
@@ -188,54 +192,45 @@ export default {
       }
       return classes[status] || 'bg-secondary'
     },
-    getEtherscanLink(address) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#' || !address) return '#'
-      
-      return `${baseUrl}/address/${address}`
-    },
     getResultsForPosition(positionId) {
+      // console.log("Position Results for : ", positionId, ":: ", this.resultsData[positionId] )
       return this.resultsData[positionId] || []
     },
-    async selectElection(electionId) {
-      this.selectedElectionId = electionId
-      await this.loadResults()
-    },
     async loadResults() {
-      if (!this.selectedElectionId || !this.isConnected) return
-      
+      if (!this.selectedElectionId) return
       this.loadingResults = true
       try {
-        const results = await this.fetchResults(this.selectedElectionId)
-        
-        // Process the results from the blockchain
-        this.resultsData = results
-        
+        const response = await api.getResults(this.selectedElectionId)
+        this.resultsData = response.data
+
         // Calculate percentages for each position
         Object.keys(this.resultsData).forEach(positionId => {
           const positionResults = this.resultsData[positionId]
+          // console.log("Position Results: ", positionResults)
           const totalVotes = positionResults.reduce((sum, result) => sum + result.votes, 0)
-          
+          // console.log("Total Votes:", totalVotes)
+
           // Add percentage to each result
           this.resultsData[positionId] = positionResults.map(result => ({
             ...result,
             percentage: totalVotes > 0 ? (result.votes / totalVotes) * 100 : 0
           }))
+
+          // Determine the winner(s)
+          const maxVotes = Math.max(...positionResults.map(result => result.votes))
+          const winners = positionResults.filter(result => result.votes === maxVotes)
+          this.resultsData[positionId].winners = winners
+
         })
-        
       } catch (error) {
         console.error('Error loading results:', error)
       } finally {
         this.loadingResults = false
       }
+    },
+    async selectElection(electionId) {
+      this.selectedElectionId = electionId
+      await this.loadResults()
     }
   },
   async created() {
@@ -245,15 +240,9 @@ export default {
         this.fetchElections(),
         this.fetchCandidates()
       ])
-      
-      // If there's at least one election, select the first one
       if (this.allElections.length > 0) {
         this.selectedElectionId = this.allElections[0].electionId
-        
-        // If we're connected to MetaMask, load results
-        if (this.isConnected) {
-          await this.loadResults()
-        }
+        await this.loadResults()
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -262,15 +251,8 @@ export default {
     }
   },
   watch: {
-    // Watch for MetaMask connection and reload results if needed
-    isConnected(newVal) {
-      if (newVal && this.selectedElectionId) {
-        this.loadResults()
-      }
-    },
-    // Watch for changes in selected election
     selectedElectionId(newVal) {
-      if (newVal && this.isConnected) {
+      if (newVal) {
         this.loadResults()
       }
     }

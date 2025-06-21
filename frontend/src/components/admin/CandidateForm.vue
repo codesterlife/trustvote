@@ -31,7 +31,7 @@
                 class="form-select"
                 :class="{ 'is-invalid': errors.electionId }"
                 required
-                :disabled="isEditing"
+                @change="logElectionId"
               >
                 <option value="">-- Select Election --</option>
                 <option v-for="election in elections" :key="election.electionId" :value="election.electionId">
@@ -51,10 +51,10 @@
                 class="form-select"
                 :class="{ 'is-invalid': errors.positionId }"
                 required
-                :disabled="!selectedElection || isEditing"
+                @change="logPositionId"
               >
                 <option value="">-- Select Position --</option>
-                <option v-for="position in positions" :key="position.positionId" :value="position.positionId">
+                <option v-for="position in positions" :key="position.id" :value="position.id">
                   {{ position.title }}
                 </option>
               </select>
@@ -71,9 +71,10 @@
               v-model="form.partyId"
               class="form-select"
               :class="{ 'is-invalid': errors.partyId }"
+              @change="logPartyId"
             >
-              <option value="">-- Independent Candidate --</option>
-              <option v-for="party in parties" :key="party.partyId" :value="party.partyId">
+              <option value="">-- Select Party --</option>
+              <option v-for="party in parties" :key="party.id" :value="party.id">
                 {{ party.name }}
               </option>
             </select>
@@ -197,6 +198,7 @@ export default {
     positions() {
       if (!this.selectedElection) return []
       return this.selectedElection.positions || []
+      // console.log(this.selectedElection.positions)
     }
   },
   watch: {
@@ -218,6 +220,15 @@ export default {
         manifesto: candidate.manifesto,
         wallet: candidate.wallet || ''
       }
+    },
+    logElectionId() {
+      console.log('Selected Election ID: ', this.form.electionId)
+    },
+    logPositionId() {
+      console.log('Selected Position ID:', this.form.positionId)
+    },
+    logPartyId(){
+      console.log('Selected Party ID:', this.form.partyId)
     },
     validateForm() {
       this.errors = {}
@@ -250,12 +261,17 @@ export default {
     },
     async submitForm() {
       if (!this.validateForm()) return
+      console.log('Form data being submitted to vuex :', this.form);
       
       this.isSubmitting = true
+
+      if (!this.isEditing) {
+        this.form.candidateId = Math.floor(10000000 + Math.random() * 90000000);
+      }
       
       try {
         if (this.isEditing) {
-          await this.$emit('update', { id: this.candidate.candidateId, data: this.form })
+          await this.$emit('update', { id: this.candidate.id, data: this.form })
         } else {
           await this.$emit('create', this.form)
         }

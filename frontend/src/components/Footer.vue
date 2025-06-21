@@ -13,7 +13,6 @@
           <ul class="list-unstyled">
             <li><router-link to="/" class="text-decoration-none">Home</router-link></li>
             <li><router-link to="/elections" class="text-decoration-none">Elections</router-link></li>
-            <li><a href="#" class="text-decoration-none">About</a></li>
           </ul>
         </div>
         <div class="col-md-3">
@@ -22,6 +21,7 @@
             <li><i class="fab fa-vuejs me-2"></i>Vue.js</li>
             <li><i class="fab fa-python me-2"></i>Django</li>
             <li><i class="fab fa-ethereum me-2"></i>Ethereum</li>
+            <li><i class="fas fa-wallet me-2"></i>MetaMask</li>
           </ul>
         </div>
       </div>
@@ -29,7 +29,7 @@
       <div class="row">
         <div class="col-12 text-center">
           <p class="mb-0 text-muted">
-            &copy; {{ currentYear }} TrustVote. All rights reserved.
+             ABHIRAM C <br>Reg No: CUAXMCA025 <br>&copy; {{ currentYear }}. All rights reserved.
           </p>
         </div>
       </div>

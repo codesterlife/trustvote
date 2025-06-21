@@ -76,11 +76,11 @@
               <tbody>
                 <tr v-for="candidate in filteredCandidates" :key="candidate.candidateId">
                   <td>{{ candidate.name }}</td>
-                  <td>{{ getElectionName(candidate.electionId) }}</td>
-                  <td>{{ getPositionName(candidate.electionId, candidate.positionId) }}</td>
+                  <td>{{ getElectionName(candidate.election) }}</td>
+                  <td>{{ getPositionName(candidate.election, candidate.position) }}</td>
                   <td>
-                    <span v-if="candidate.partyId" class="party-badge" :style="getPartyStyle(candidate.partyId)">
-                      {{ getPartyName(candidate.partyId) }}
+                    <span v-if="candidate.party" class="party-badge">
+                      {{ candidate.party_name }}
                     </span>
                     <span v-else class="text-muted">Independent</span>
                   </td>
@@ -103,7 +103,7 @@
                       <button @click="editCandidate(candidate)" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button @click="viewManifesto(candidate)" class="btn btn-sm btn-outline-info">
+                      <button @click="viewManifesto(candidate)" class="btn btn-sm btn-outline-info" title="View Manifesto">
                         <i class="fas fa-file-alt"></i>
                       </button>
                     </div>
@@ -153,23 +153,18 @@ export default {
       searchTerm: '',
       electionFilter: '',
       manifestoModal: null,
-      parties: [
-        { partyId: 1, name: 'Unity Party', color: '#4CAF50' },
-        { partyId: 2, name: 'Green Future', color: '#2196F3' },
-        { partyId: 3, name: 'Student Voice', color: '#FF9800' },
-        { partyId: 4, name: 'Progress Alliance', color: '#9C27B0' }
-      ]
+      parties: []
     }
   },
   computed: {
     ...mapGetters(['allElections', 'candidates']),
     filteredCandidates() {
       let filtered = [...this.candidates]
-      
+      // console.log("filtered candidates", filtered)
       // Filter by election if selected
       if (this.electionFilter) {
         const electionId = parseInt(this.electionFilter)
-        filtered = filtered.filter(c => c.electionId === electionId)
+        filtered = filtered.filter(c => c.election === electionId)
       }
       
       // Filter by search term if entered
@@ -186,7 +181,7 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['fetchCandidates', 'createCandidate', 'updateElection']),
+    ...mapActions(['fetchCandidates', 'fetchParties', 'createCandidate', 'updateCandidate']),
     truncateAddress(address) {
       if (!address) return ''
       return address.slice(0, 6) + '...' + address.slice(-4)
@@ -198,17 +193,12 @@ export default {
     getPositionName(electionId, positionId) {
       const election = this.allElections.find(e => e.electionId === electionId)
       if (!election || !election.positions) return 'Unknown Position'
+      // console.log(election)
       
-      const position = election.positions.find(p => p.positionId === positionId)
+      const position = election.positions.find(p => p.id === positionId)
+      // console.log(position)
+
       return position ? position.title : 'Unknown Position'
-    },
-    getPartyName(partyId) {
-      const party = this.parties.find(p => p.partyId === partyId)
-      return party ? party.name : 'Unknown Party'
-    },
-    getPartyStyle(partyId) {
-      const party = this.parties.find(p => p.partyId === partyId)
-      return party ? { backgroundColor: party.color, color: 'white' } : {}
     },
     showCreateForm() {
       this.selectedCandidate = null
@@ -237,10 +227,9 @@ export default {
         console.error('Error creating candidate:', error)
       }
     },
-    async handleUpdateCandidate({ id, data }) {
+    async handleUpdateCandidate(id, data) {
       try {
-        // Call the API to update candidate
-        await this.updateCandidate({ id, data })
+        await this.updateCandidate(id, data)
         this.hideForm()
       } catch (error) {
         console.error('Error updating candidate:', error)
@@ -251,8 +240,11 @@ export default {
     this.isLoading = true
     try {
       await this.fetchCandidates()
+      await this.fetchParties() // Fetch parties on component creation
+      this.parties = this.$store.getters.allParties // Assign parties from Vuex
     } catch (error) {
       console.error('Error fetching candidates:', error)
+      console.error('Error fetching parties:', error)
     } finally {
       this.isLoading = false
     }

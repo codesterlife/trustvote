@@ -11,7 +11,7 @@
               placeholder="Search voters..." 
               v-model="searchTerm"
             >
-            <button class="btn btn-light btn-sm">
+            <button class="btn btn-light btn-sm"> 
               <i class="fas fa-search"></i>
             </button>
           </div>
@@ -44,18 +44,19 @@
                 <th>Student ID</th>
                 <th>Email</th>
                 <th>Ethereum Address</th>
-                <th class="text-center">Status</th>
                 <th class="text-center">Actions</th>
+                <th class="text-center">Status</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="voter in filteredVoters" :key="voter.id">
-                <td>{{ voter.name }}</td>
-                <td>{{ voter.studentId }}</td>
+                <td>{{ voter.first_name }} {{ voter.last_name }}</td>
+                <td>{{ voter.student_id}}</td>
                 <td>{{ voter.email }}</td>
                 <td class="wallet-address">
-                  <span v-if="voter.walletAddress">
-                    {{ truncateAddress(voter.walletAddress) }}
+                  <span v-if="voter.wallet_address" class="badge bg-light text-black">
+                    <i class="fab fa-ethereum me-2"></i>
+                    {{ truncateAddress(voter.wallet_address) }}
                   </span>
                   <span v-else class="text-muted">
                     <i class="fas fa-exclamation-circle me-1"></i>
@@ -63,26 +64,27 @@
                   </span>
                 </td>
                 <td class="text-center">
-                  <span 
-                    class="badge"
-                    :class="voter.isWhitelisted ? 'bg-success' : 'bg-warning'"
-                  >
-                    {{ voter.isWhitelisted ? 'Whitelisted' : 'Pending' }}
-                  </span>
-                </td>
-                <td class="text-center">
                   <button 
-                    v-if="!voter.isWhitelisted && voter.walletAddress" 
                     @click="whitelistVoter(voter)" 
                     class="btn btn-sm btn-success me-1"
                     :disabled="isProcessing"
                   >
-                    <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    <i class="fas" :class="isProcessing ? 'fa-spinner fa-spin' : 'fa-plus'"></i>
                     Whitelist
                   </button>
-                  <button class="btn btn-sm btn-info">
-                    <i class="fas fa-eye"></i>
-                  </button>
+                </td>
+                <td class="text-center">
+                  <div v-if="whitelistedElections[voter.id] && whitelistedElections[voter.id].length > 0">
+                    <span class="badge bg-success">Whitelisted for: 
+                      <span v-for="election in whitelistedElections[voter.id]" :key="election" class="badge bg-light text-black me-1">
+                        <!-- {{ whitelistedElections[voter.id].length > 1 ? election + ', ' : election }} -->
+                          {{ election }}&nbsp;
+                      </span>
+                    </span>
+                  </div>
+                  <div v-else>
+                    <span class="badge bg-warning">Not Whitelisted for any election. </span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -118,7 +120,10 @@
               </div>
               
               <div class="mb-3">
-                <label for="electionId" class="form-label">Election*</label>
+                <label for="electionDropdown" class="form-label">
+                  <span v-if="isVoterInElectoralRoll" class="badge bg-success ms-2">Voter verified in Electoral Roll</span>
+                  <span v-else-if="!isVoterInElectoralRoll" class="badge bg-danger ms-2">Voter not present in Electoral Roll. Contact Election Officials.</span>
+                </label>      
                 <select
                   id="electionId"
                   v-model="whitelistForm.electionId"
@@ -131,6 +136,10 @@
                     {{ election.title }}
                   </option>
                 </select>
+                <div v-if="!isVoterInElectoralRoll && whitelistForm.electionId" class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  This voter must be verified in the Electoral Roll before they can be whitelisted. Please contact Election Officials.
+                </div>
                 <div v-if="whitelistForm.electionError" class="invalid-feedback">
                   {{ whitelistForm.electionError }}
                 </div>
@@ -143,7 +152,7 @@
               
               <div class="d-flex justify-content-end">
                 <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary" :disabled="whitelistForm.isSubmitting">
+                <button type="submit" class="btn btn-primary" :disabled="whitelistForm.isSubmitting || !isVoterInElectoralRoll" :title="!isVoterInElectoralRoll ? 'Voter must be verified in Electoral Roll' : ''">
                   <i class="fas" :class="whitelistForm.isSubmitting ? 'fa-spinner fa-spin' : 'fa-check'"></i>
                   {{ whitelistForm.isSubmitting ? 'Processing...' : 'Whitelist Voter' }}
                 </button>
@@ -157,6 +166,8 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'VoterList',
   props: {
@@ -184,20 +195,52 @@ export default {
         electionError: '',
         isSubmitting: false
       },
-      whitelistModal: null
+      isVerified: false,
+      whitelistModal: null,
+      whitelistedElections: [],
+      selectedElectionId: '',
+      electoralRoll: [],
+      selectedVoter: null, // for modal
+    }
+  },
+  watch: {
+    async 'whitelistForm.electionId'(newElectionId) {
+      if (!newElectionId || !this.selectedVoter?.student_id) {
+        this.isVerified = false;
+        return;
+      }
+
+      try {
+        const response = await api.checkElectoralRoll(
+          newElectionId,
+          this.selectedVoter.student_id
+        );
+        
+        console.log('Electoral roll verification response:', response);
+        this.isVerified = response.data?.isVerified || false;
+        
+        if (this.isVerified) {
+          this.whitelistForm.error = '';
+        }
+      } catch (error) {
+        console.error('Error checking electoral roll:', error);
+        this.isVerified = false;
+      }
     }
   },
   computed: {
     filteredVoters() {
       if (!this.searchTerm) return this.voters
-      
       const searchLower = this.searchTerm.toLowerCase()
-      return this.voters.filter(voter => 
+      return this.voters.filter(voter => !voter.is_admin).filter(voter => 
         voter.name.toLowerCase().includes(searchLower) ||
         voter.email.toLowerCase().includes(searchLower) ||
         voter.studentId.toLowerCase().includes(searchLower) ||
         (voter.walletAddress && voter.walletAddress.toLowerCase().includes(searchLower))
       )
+    },
+    isVoterInElectoralRoll() {
+      return this.isVerified;
     }
   },
   methods: {
@@ -205,25 +248,42 @@ export default {
       if (!address) return ''
       return address.slice(0, 6) + '...' + address.slice(-4)
     },
-    async whitelistVoter(voter) {
-      if (!voter.walletAddress) return
-      
-      this.isProcessing = true
+    async loadWhitelistedElections() {
       try {
-        await this.$emit('whitelist', { 
-          electionId: this.elections[0]?.electionId, // Default to first election
-          voterAddress: voter.walletAddress
+        const response = await api.getVoterElectionWhitelist()
+        // Group whitelist data by voter ID
+        response.data.forEach(item => {
+          if (item.is_whitelisted) {
+            if (!this.whitelistedElections[item.voter]) {
+              this.whitelistedElections[item.voter] = []
+            }
+            this.whitelistedElections[item.voter].push(item.election_title)
+          }
         })
       } catch (error) {
-        console.error('Error whitelisting voter:', error)
-      } finally {
-        this.isProcessing = false
+        console.error('Error fetching whitelisted elections:', error)
       }
     },
-    showWhitelistModal() {
+    async fetchElectoralRoll(electionId) {
+      try {
+        // Use your Vuex action or API directly
+        const data = await this.$store.dispatch('fetchElectoralRoll', electionId)
+        this.electoralRoll = data
+      } catch (error) {
+        this.electoralRoll = []
+        console.error('Failed to fetch electoral roll:', error)
+      }
+    },
+    showWhitelistModal(voter = null) {
       this.resetWhitelistForm()
+      if (voter && voter.wallet_address){
+        this.whitelistForm.voterAddress = voter.wallet_address
+      }
       this.whitelistModal = new bootstrap.Modal(document.getElementById('whitelistModal'))
       this.whitelistModal.show()
+      this.selectedVoter = voter
+      // Reset verification status when modal opens
+      this.isVerified = false;
     },
     resetWhitelistForm() {
       this.whitelistForm = {
@@ -275,9 +335,17 @@ export default {
       } finally {
         this.whitelistForm.isSubmitting = false
       }
+    },
+    async whitelistVoter(voter) {
+      if (!voter.wallet_address) return
+      this.showWhitelistModal(voter) // Open modal and pre-fill address
     }
+  },
+  async created() {
+    await this.loadWhitelistedElections() // Load whitelist data on component creation
   }
 }
+
 </script>
 
 <style scoped>
@@ -286,3 +354,4 @@ export default {
   font-size: 0.9rem;
 }
 </style>
+  

@@ -104,9 +104,9 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="election in recentElections" :key="election.id">
+                  <tr v-for="election in recentElections" :key="election.electionId">
                     <td>
-                      <router-link :to="`/elections/${election.id}`">
+                      <router-link :to="`/elections/${election.electionId}`">
                         {{ election.title }}
                       </router-link>
                     </td>
@@ -116,8 +116,8 @@
                         {{ election.status }}
                       </span>
                     </td>
-                    <td>{{ formatDate(election.start_time) }}</td>
-                    <td>{{ formatDate(election.end_time) }}</td>
+                    <td>{{ formatDate(election.startTime) }}</td>
+                    <td>{{ formatDate(election.endTime) }}</td>
                     <td>
                       <div class="progress" style="height: 8px;">
                         <div class="progress-bar" 
@@ -128,10 +128,10 @@
                       <small>{{ election.participation }}%</small>
                     </td>
                     <td>
-                      <a :href="getEtherscanLink(election.contract_address)" 
+                      <a href="#" 
                          target="_blank" 
                          class="contract-link">
-                        {{ truncateAddress(election.contract_address) }}
+                        {{ truncateAddress(election.contractAddress) }}
                         <i class="fas fa-external-link-alt ms-1"></i>
                       </a>
                     </td>
@@ -201,7 +201,7 @@ export default {
         // Create array of promises for processing each election with participation data
         const electionPromises = electionList.map(async election => {
           try {
-            const votesResponse = await api.getVotesByElection(election.id)
+            const votesResponse = await api.getVotesByElection(election.electionId)
             const voteCount = votesResponse.data.length
             
             // Get the total number of whitelisted voters for this election
@@ -214,7 +214,7 @@ export default {
             
             return { ...election, participation }
           } catch (error) {
-            console.error(`Error getting data for election ${election.id}:`, error)
+            console.error(`Error getting data for election ${election.electionId}:`, error)
             return { ...election, participation: 0 }
           }
         })
@@ -224,7 +224,7 @@ export default {
           
         // Fetch vote counts for all elections
         const votePromises = elections.map(election => 
-          api.getVotesByElection(election.id)
+          api.getVotesByElection(election.electionId)
         )
         
         const voteResults = await Promise.all(votePromises)
@@ -412,20 +412,6 @@ export default {
       return address.slice(0, 6) + '...' + address.slice(-4)
     },
     
-    getEtherscanLink(address) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#' || !address) return '#'
-      
-      return `${baseUrl}/address/${address}`
-    }
   },
   mounted() {
     this.loadAnalyticsData()

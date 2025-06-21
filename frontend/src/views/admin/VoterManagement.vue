@@ -1,4 +1,4 @@
-<template>
+....<template>
   <div class="voter-management">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h2>Voter Management</h2>
@@ -35,7 +35,11 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['allElections', 'voters', 'isConnected'])
+    ...mapGetters(['allElections', 'voters', 'isConnected']),
+    logVoters() {
+      // console.log(this.voters); // Log the voters array
+      return this.voters;
+    }
   },
   methods: {
     ...mapActions(['fetchVoters', 'whitelistVoter']),
@@ -46,6 +50,7 @@ export default {
       }
       
       try {
+        // console.log("Whitelist data received at VoterManagement.vue", { electionId, voterAddress })
         await this.whitelistVoter({ electionId, voterAddress })
         // Refresh voters list
         await this.fetchVoters()

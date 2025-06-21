@@ -98,7 +98,8 @@
       </div>
       
       <!-- Positions and Candidates for Voting -->
-      <div v-for="position in election.positions" :key="position.positionId" class="position-section mb-5">
+      <div v-for="position in election.positions" :key="position.id" class="position-section mb-5">
+        <!-- {{ console.log("Position: ", position) }} -->
         <div class="position-header mb-3">
           <h2>{{ position.title }}</h2>
           <p class="text-muted">Select one candidate for this position</p>
@@ -111,23 +112,23 @@
                 <CandidateCard 
                   :candidate="getCandidateById(candidateId)" 
                   :showActions="true"
-                  :canVote="!hasVoted(position.positionId)"
-                  @vote="selectCandidate(position.positionId, candidateId)"
+                  :canVote="!hasVoted(position.id)"
+                  @vote="selectCandidate(position.id, candidateId)"
                 />
               </div>
             </div>
             
-            <div v-if="selectedCandidates[position.positionId]" class="selected-candidate-info mt-3">
+            <div v-if="selectedCandidates[position.id]" class="selected-candidate-info mt-3">
               <div class="alert alert-success">
-                <strong>Selected:</strong> {{ getCandidateName(selectedCandidates[position.positionId]) }}
-                <button @click="castVoteForPosition(position.positionId)" class="btn btn-success ms-3" :disabled="transactionInProgress">
+                <strong>Selected:</strong> {{ getCandidateName(selectedCandidates[position.id]) }}
+                <button @click="castVoteForPosition(position.id)" class="btn btn-success ms-3" :disabled="transactionInProgress">
                   <i class="fas" :class="transactionInProgress ? 'fa-spinner fa-spin' : 'fa-check'"></i>
                   Confirm Vote
                 </button>
               </div>
             </div>
             
-            <div v-if="hasVoted(position.positionId)" class="already-voted mt-3">
+            <div v-if="hasVoted(position.id)" class="already-voted mt-3">
               <div class="alert alert-secondary">
                 <i class="fas fa-check-circle me-2"></i>
                 You have already voted for this position.
@@ -145,6 +146,7 @@ import { mapActions, mapGetters } from 'vuex'
 import CandidateCard from '@/components/CandidateCard.vue'
 import ConnectWallet from '@/components/ConnectWallet.vue'
 import VoteConfirmation from '@/components/VoteConfirmation.vue'
+import api from '@/services/api.js'
 
 export default {
   name: 'VotingPage',
@@ -188,7 +190,8 @@ export default {
       return date.toLocaleString()
     },
     getCandidateById(candidateId) {
-      const candidate = this.candidates.find(c => c.candidateId === candidateId)
+      // console.log("Candidates: ", this.candidates)
+      const candidate = this.candidates.find(c => c.candidate_id === candidateId)
       if (!candidate) return { name: 'Unknown Candidate', bio: 'Candidate information not available' }
       return candidate
     },
@@ -202,6 +205,8 @@ export default {
         ...this.selectedCandidates,
         [positionId]: candidateId
       }
+      console.log("postion ID", positionId)
+      console.log("candidate ID", candidateId)
     },
     hasVoted(positionId) {
       return this.votedPositions.has(positionId)
@@ -251,7 +256,7 @@ export default {
         })
         
         // Mark position as voted
-        this.votedPositions.add(positionId)
+        // this.votedPositions.add(positionId)
         
         // Show confirmation
         this.confirmationData = {
@@ -280,8 +285,14 @@ export default {
       this.updateTimeRemaining()
       this.timerInterval = setInterval(this.updateTimeRemaining, 1000)
       
-      // TODO: In a real implementation, we would fetch the user's voting history
-      // from the blockchain to populate votedPositions
+      // Fetch user's voting history
+      const userVotes = await api.getUserVotes()
+      userVotes.data.forEach(vote => {
+        if (vote.election_id === this.electionId) {
+          this.votedPositions.add(vote.position_id)
+        }
+      })
+
     } catch (error) {
       console.error('Error fetching election details:', error)
       this.isLoading = false

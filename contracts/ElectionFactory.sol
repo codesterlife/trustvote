@@ -8,7 +8,13 @@ import "./Election.sol";
  * @dev Factory contract for deploying new Election contracts
  */
 contract ElectionFactory {
-    event ElectionCreated(address electionAddress, string title, uint256 timestamp);
+    event ElectionCreated(
+        address indexed electionAddress,
+        string title,
+        uint256 startTime,
+        uint256 endTime,
+        uint256[] positionIds
+    );
     
     // Array to store all created elections
     address[] public elections;
@@ -41,7 +47,7 @@ contract ElectionFactory {
         elections.push(electionAddress);
         
         // Emit event
-        emit ElectionCreated(electionAddress, _title, block.timestamp);
+        emit ElectionCreated(electionAddress, _title, _startTime, _endTime, _positionIds);
         
         return electionAddress;
     }

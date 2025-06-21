@@ -12,11 +12,11 @@
             tamper-proof elections with real-time results.
           </p>
           <div class="d-flex flex-wrap gap-2">
-            <router-link to="/register" class="btn btn-primary btn-lg me-2">
+            <router-link to="/register" class="btn btn-primary btn-lg me-2" v-if="!isLoggedIn">
               <i class="fas fa-user-plus me-2"></i>
               Register to Vote
             </router-link>
-            <router-link to="/elections" class="btn btn-outline-primary btn-lg">
+            <router-link to="/elections" class="btn btn-outline-primary btn-lg" v-if="isLoggedIn">
               <i class="fas fa-list me-2"></i>
               View Elections
             </router-link>
@@ -107,7 +107,7 @@
           <div class="timeline-content">
             <h3>Get Whitelisted</h3>
             <p>
-              Admins verify your eligibility and whitelist your Ethereum address to vote.
+              Admins whitelists your Ethereum address for corresponding election to vote.
             </p>
           </div>
         </div>
@@ -152,11 +152,15 @@
 
 <script>
 import ConnectWallet from '@/components/ConnectWallet.vue'
+import { mapGetters } from 'vuex'
 
 export default {
   name: 'Home',
   components: {
     ConnectWallet
+  },
+  computed: {
+    ...mapGetters(['isLoggedIn']),
   }
 }
 </script>

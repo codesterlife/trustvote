@@ -1,5 +1,5 @@
-import ElectionFactoryABI from './abis/ElectionFactory.json'
-import ElectionABI from './abis/Election.json'
+import ElectionFactoryABI from './ElectionFactory.json'
+import ElectionABI from './Election.json'
 
 class ContractService {
   constructor() {

@@ -114,7 +114,7 @@
               </div>
             </div>
             
-            <button type="button" @click="addPosition" class="btn btn-sm btn-outline-secondary mt-2">
+            <button v-if="!isEditing" type="button" @click="addPosition" class="btn btn-sm btn-outline-secondary mt-2">
               <i class="fas fa-plus me-1"></i>
               Add Position
             </button>
@@ -206,7 +206,7 @@ export default {
     },
     addPosition() {
       const newPosition = {
-        positionId: Date.now(), // Temporary ID
+        positionId: Math.floor(10000000 + Math.random() * 90000000), // Temporary ID
         title: ''
       }
       this.form.positions.push(newPosition)

@@ -162,9 +162,17 @@
                 <div class="info-item">
                   <div class="info-label">Voting Status:</div>
                   <div class="info-value">
-                    <span class="badge" :class="currentUser.is_whitelisted ? 'bg-success' : 'bg-warning'">
-                      {{ currentUser.is_whitelisted ? 'Whitelisted for Voting' : 'Not Whitelisted' }}
-                    </span>
+                    <div v-if="whitelistedElections.length > 0">
+                      <span class="badge bg-success">Whitelisted for the following elections:</span>
+                      <ul class="mt-1">
+                        <li v-for="election in whitelistedElections" :key="election.election">
+                          {{ election.election_title }}
+                        </li>
+                      </ul>
+                    </div>
+                    <div v-else>
+                      <span class="badge bg-warning">Not Whitelisted for any elections</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -195,7 +203,7 @@
               </div>
               <p class="mt-2">Loading your voting history...</p>
             </div>
-            
+             
             <div v-else-if="votingHistory.length === 0" class="text-center py-3">
               <div class="alert alert-info">
                 <i class="fas fa-info-circle me-2"></i>
@@ -222,10 +230,10 @@
                       <td>{{ vote.candidate_name }}</td>
                       <td>{{ formatDateTime(vote.timestamp) }}</td>
                       <td class="text-center">
-                        <a v-if="vote.transaction_hash" :href="getEtherscanLink(vote.transaction_hash)" target="_blank" class="btn btn-sm btn-outline-secondary">
-                          <i class="fas fa-external-link-alt me-1"></i>
-                          View on Etherscan
-                        </a>
+                        <span v-if="vote.transaction_hash" class="badge bg-light text-black">
+                          <i class="fab fa-ethereum me-2"></i>
+                          {{ vote.transaction_hash.slice(0, 8) + '...' + vote.transaction_hash.slice(-6) }}
+                        </span>
                         <span v-else class="text-muted">
                           <i class="fas fa-times-circle me-1"></i>
                           Not available
@@ -278,7 +286,8 @@ export default {
         email: '',
         studentId: ''
       },
-      votingHistory: []
+      votingHistory: [],
+      whitelistedElections: []
     }
   },
   computed: {
@@ -385,26 +394,13 @@ export default {
         // Get the user's voting history from the API
         const response = await api.getUserVotes()
         this.votingHistory = response.data
+        console.log("Voting History: ", this.votingHistory)
       } catch (error) {
         console.error('Error loading voting history:', error)
         this.errorMessage = 'Failed to load your voting history'
       } finally {
         this.isLoadingHistory = false
       }
-    },
-    getEtherscanLink(txHash) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#') return '#'
-      
-      return `${baseUrl}/tx/${txHash}`
     },
     copyWalletAddress() {
       navigator.clipboard.writeText(this.walletAddress).then(() => {
@@ -425,11 +421,23 @@ export default {
     clearMessages() {
       this.errorMessage = ''
       this.successMessage = ''
-    }
+    },
+    async loadWhitelistedElections() {
+      try {
+        const response = await api.getVoterElectionWhitelist()
+        this.whitelistedElections = response.data.filter(
+          item => item.is_whitelisted && item.voter_name === this.currentUser.username
+        )
+      } catch (error) {
+        console.error('Error fetching whitelisted elections:', error)
+        this.errorMessage = 'Failed to load whitelisted elections'
+      }
+    },
   },
   async created() {
     // Load user voting history
     await this.loadVotingHistory()
+    await this.loadWhitelistedElections()
   }
 }
 </script>

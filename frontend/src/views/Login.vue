@@ -106,7 +106,6 @@ export default {
           email: this.form.email,
           password: this.form.password
         })
-        
         // Redirect to elections page on successful login
         this.$router.push('/elections')
       } catch (error) {

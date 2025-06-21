@@ -5,11 +5,13 @@ import Login from '@/views/Login.vue'
 import UserProfile from '@/views/UserProfile.vue'
 import Elections from '@/views/Elections.vue'
 import ElectionDetail from '@/views/ElectionDetail.vue'
+import ElectoralRoll from '@/views/ElectoralRoll.vue' 
 import VotingPage from '@/views/VotingPage.vue'
 import ElectionResults from '@/views/ElectionResults.vue'
 import AnalyticsDashboard from '@/views/AnalyticsDashboard.vue'
 import Dashboard from '@/views/admin/Dashboard.vue'
 import ElectionManagement from '@/views/admin/ElectionManagement.vue'
+import ElectoralRollManagement from '@/views/admin/ElectoralRollManagement.vue'
 import CandidateManagement from '@/views/admin/CandidateManagement.vue'
 import VoterManagement from '@/views/admin/VoterManagement.vue'
 import ResultsView from '@/views/admin/ResultsView.vue'
@@ -47,6 +49,12 @@ const routes = [
     path: '/elections/:id',
     name: 'ElectionDetail',
     component: ElectionDetail,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/elections/:id/electoral-roll',
+    name: 'ElectionElectoralRoll',
+    component: ElectoralRoll,
     meta: { requiresAuth: true }
   },
   {
@@ -92,6 +100,11 @@ const routes = [
         path: 'results',
         name: 'ResultsView',
         component: ResultsView
+      },
+      {
+        path: 'electoral-roll',
+        name: 'ElectoralRollManagement',
+        component: ElectoralRollManagement
       }
     ]
   }
@@ -108,9 +121,9 @@ router.beforeEach((to, from, next) => {
   const isAdmin = store.getters.isAdmin
   
   if (to.matched.some(record => record.meta.requiresAuth) && !isLoggedIn) {
-    next('/login')
+    next("/")
   } else if (to.matched.some(record => record.meta.requiresAdmin) && !isAdmin) {
-    next('/')
+    next("/")
   } else {
     next()
   }

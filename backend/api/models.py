@@ -9,7 +9,7 @@ class User(AbstractUser):
     student_id = models.CharField(max_length=20, blank=True, null=True, unique=True)
     is_admin = models.BooleanField(default=False)
     wallet_address = models.CharField(max_length=42, blank=True, null=True, unique=True)
-    is_whitelisted = models.BooleanField(default=False)
+    # is_whitelisted = models.BooleanField(default=False)
     
     class Meta:
         verbose_name = _('user')
@@ -41,7 +41,21 @@ class Election(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return self.title
+        return f"{self.title}"
+    
+class VoterElectionWhitelist(models.Model):
+    """
+    Model to track whitelisting of voters for specific elections
+    """
+    voter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='whitelisted_elections')
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, related_name='whitelisted_voters')
+    is_whitelisted = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('voter', 'election')  # Ensure a voter can only be whitelisted once per election
+
+    def __str__(self):
+        return f"{self.voter.username} - {self.election.title} - {'Whitelisted' if self.is_whitelisted else 'Not Whitelisted'}"
 
 class Position(models.Model):
     """
@@ -82,13 +96,28 @@ class Candidate(models.Model):
     manifesto = models.TextField()
     photo_url = models.URLField(blank=True, null=True)
     wallet = models.CharField(max_length=42, blank=True, null=True)
-    candidate_id = models.IntegerField(unique=True)  # Used in smart contract
+    candidate_id = models.IntegerField(unique=True, blank=True, null=True)  # Used in smart contract
     
     class Meta:
         ordering = ['election', 'position', 'name']
     
     def __str__(self):
         return f"{self.name} - {self.position.title}"
+    
+class ElectoralRoll(models.Model):
+    """
+    Model representing the electoral roll for an election.
+    """
+    election = models.ForeignKey(Election, related_name='electoral_roll', on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=255)
+    student_id = models.CharField(max_length=20, unique=True)
+
+    class Meta:
+        unique_together = ('election', 'student_id')  # Ensure unique student ID per election
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.student_id}) - {self.election.title}"
 
 class Vote(models.Model):
     """

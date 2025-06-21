@@ -33,10 +33,10 @@
               <i class="far fa-calendar-check me-2"></i>
               <strong>End:</strong> {{ formatDateTime(election.endTime) }}
             </div>
-            <div class="meta-item" v-if="election.contract_address">
+            <div class="meta-item" v-if="election.contractAddress">
               <i class="fab fa-ethereum me-2"></i>
               <strong>Contract:</strong> 
-              <a :href="getEtherscanLink(election.contract_address)" target="_blank" class="contract-link">
+              <a href="#" target="_blank" class="contract-link">
                 {{ truncatedContractAddress }}
               </a>
             </div>
@@ -48,7 +48,7 @@
             </div>
             <div class="meta-item">
               <i class="fas fa-user-check me-2"></i>
-              <strong>Eligibility:</strong> Registered and whitelisted students
+              <strong>Eligibility:</strong> Registered and whitelisted voters
             </div>
             <div class="election-timer meta-item" v-if="election.status === 'Voting'">
               <i class="fas fa-hourglass-half me-2"></i>
@@ -83,9 +83,9 @@
         </div>
         
         <div class="row">
-          <div v-for="candidateId in position.candidates" :key="candidateId" class="col-md-6 col-lg-4 mb-4">
+          <div v-for="candidate in position.candidates" :key="candidate" class="col-md-6 col-lg-4 mb-4">
             <CandidateCard 
-              :candidate="getCandidateById(candidateId)" 
+              :candidate="getCandidateById(candidate)" 
               :showActions="false"
             />
           </div>
@@ -99,9 +99,10 @@
           <div v-for="party in election.parties" :key="party.partyId" class="col-md-3 mb-4">
             <div class="card party-card h-100">
               <div class="card-body text-center">
-                <div class="party-logo mb-3">
-                  <i class="fas fa-users fa-3x" :style="{ color: getPartyColor(party.name) }"></i>
+                <div class="party-logo mb-6">
+                  <img :src="party.logo_url" alt="" width="64px" height="64px">
                 </div>
+                <br><br><br>
                 <h5 class="card-title">{{ party.name }}</h5>
               </div>
             </div>
@@ -151,8 +152,8 @@ export default {
       return this.election ? statusMap[this.election.status] || 'status-init' : ''
     },
     truncatedContractAddress() {
-      if (!this.election || !this.election.contract_address) return ''
-      return this.election.contract_address.slice(0, 8) + '...' + this.election.contract_address.slice(-6)
+      if (!this.election || !this.election.contractAddress) return ''
+      return this.election.contractAddress.slice(0, 8) + '...' + this.election.contractAddress.slice(-6)
     }
   },
   methods: {
@@ -162,38 +163,12 @@ export default {
       return date.toLocaleString()
     },
     getCandidateById(candidateId) {
-      const candidate = this.candidates.find(c => c.candidateId === candidateId)
+      const candidate = this.candidates.find(c => c.candidate_id === candidateId)
       if (!candidate) return { name: 'Unknown Candidate', bio: 'Candidate information not available' }
       return candidate
     },
     goToVote() {
       this.$router.push(`/elections/${this.electionId}/vote`)
-    },
-    getEtherscanLink(address) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#' || !address) return '#'
-      
-      return `${baseUrl}/address/${address}`
-    },
-    getPartyColor(partyName) {
-      if (!partyName) return '#6c757d'
-      
-      const partyColors = {
-        'Unity Party': '#4CAF50',
-        'Green Future': '#2196F3',
-        'Student Voice': '#FF9800',
-        'Progress Alliance': '#9C27B0'
-      }
-      
-      return partyColors[partyName] || '#6c757d'
     },
     updateTimer() {
       if (!this.election) return

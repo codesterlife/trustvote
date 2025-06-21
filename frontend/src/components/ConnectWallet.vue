@@ -34,14 +34,24 @@
             <!-- Whitelisting Status -->
             <div class="mt-3" v-if="isLoggedIn">
               <div v-if="isWalletLinked">
-                <div class="alert alert-info" v-if="!isWhitelisted">
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i>
+                  Your wallet is connected and linked to your account.
+                </div>
+
+                <div v-if="whitelistedElections.length > 0" class="alert alert-success">
+                  <i class="fas fa-user-check me-2"></i>
+                  Your wallet is whitelisted for the following elections:
+                  <ul class="mt-2">
+                    <li v-for="election in whitelistedElections" :key="election.id">
+                      {{ election.election_title }}
+                    </li>
+                  </ul>
+                </div>
+                <div v-else class="alert alert-info">
                   <i class="fas fa-info-circle me-2"></i>
                   Your wallet is linked to your account but not yet whitelisted for voting. 
                   Please wait for an admin to approve your account.
-                </div>
-                <div class="alert alert-success" v-else>
-                  <i class="fas fa-user-check me-2"></i>
-                  Your wallet is whitelisted for voting! You can now participate in all eligible elections.
                 </div>
               </div>
               <div v-else>
@@ -92,7 +102,8 @@ export default {
     return {
       isLoading: false,
       isLinking: false,
-      error: null
+      error: null,
+      whitelistedElections: []
     }
   },
   computed: {
@@ -159,6 +170,7 @@ export default {
       try {
         // Call API to update wallet address for current user
         await api.updateWallet({ wallet_address: this.walletAddress })
+        window.location.reload(true)
         
         // Refresh user data to update the UI
         const response = await api.getCurrentUser()
@@ -170,6 +182,22 @@ export default {
       } finally {
         this.isLinking = false
       }
+    }, 
+    async loadWhitelistedElections() {
+      try {
+        const response = await api.getVoterElectionWhitelist()
+        this.whitelistedElections = response.data.filter(
+          item => item.is_whitelisted && item.voter_name === this.currentUser.username
+        )
+      } catch (error) {
+        console.error('Error fetching whitelisted elections:', error)
+        this.error = 'Failed to load whitelisted elections'
+      }
+    }
+  },
+  async created() {
+    if (this.isLoggedIn && this.isWalletLinked) {
+      await this.loadWhitelistedElections()
     }
   }
 }

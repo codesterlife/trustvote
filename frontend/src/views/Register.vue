@@ -28,7 +28,7 @@
               </div>
             </div>
             
-            <form v-else @submit.prevent="register">
+            <form v-else @submit.prevent="handleRegister">
               <div class="alert alert-info mb-4">
                 <i class="fas fa-info-circle me-2"></i>
                 Please provide your details to register. After registration, an admin will verify your account.
@@ -193,36 +193,45 @@ export default {
       if (!this.validateForm()) return
       
       this.isSubmitting = true
+      this.errors = {}
       
       try {
-        await this.register({
-          name: this.form.name,
-          student_id: this.form.studentId,
-          email: this.form.email,
-          password: this.form.password
-        })
+        const nameParts = this.form.name.trim().split(' ')
+        const firstName = nameParts[0]
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
         
-        this.registrationSuccess = true
+        const registrationData = {
+          username: this.form.email.split('@')[0].toLowerCase(),
+          email: this.form.email.toLowerCase(),
+          password: this.form.password,
+          confirm_password: this.form.confirmPassword,  // Make sure this matches exactly
+          first_name: firstName,
+          last_name: lastName || firstName,
+          student_id: this.form.studentId.trim()
+        }
+
+        // Add debug logging
+        // console.log('Registration payload:', registrationData)
+
+        const response = await this.$store.dispatch('register', registrationData)
+        
+        // Add response logging
+        // console.log('Registration response:', response)
+        
+        if (response && response.data) {
+          this.registrationSuccess = true
+          this.$router.push('/login')
+        }
       } catch (error) {
-        console.error('Registration error:', error)
+        // Add error logging
+        console.error('Registration error:', error.response?.data || error)
         
-        // Handle API validation errors
-        if (error.response && error.response.data) {
-          const apiErrors = error.response.data
-          
-          if (apiErrors.email) {
-            this.errors.email = apiErrors.email[0]
-          }
-          
-          if (apiErrors.student_id) {
-            this.errors.studentId = apiErrors.student_id[0]
-          }
-          
-          if (apiErrors.non_field_errors) {
-            this.errors.general = apiErrors.non_field_errors[0]
-          }
+        if (error.response?.data) {
+          // Handle specific field errors from the backend
+          Object.entries(error.response.data).forEach(([field, errors]) => {
+            this.errors[field] = Array.isArray(errors) ? errors[0] : errors
+          })
         } else {
-          // General error
           this.errors.general = 'Registration failed. Please try again.'
         }
       } finally {

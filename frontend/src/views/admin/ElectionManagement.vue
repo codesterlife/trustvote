@@ -81,13 +81,11 @@
                       {{ election.status }}
                     </span>
                   </td>
-                  <td class="text-center">{{ election.positions ? election.positions.length : 0 }}</td>
+                  <td class="text-center">{{election.positions.length}}</td>
                   <td class="text-center">
-                    <span v-if="election.contract_address">
-                      <a :href="getEtherscanLink(election.contract_address)" target="_blank" class="contract-link">
+                    <span v-if="election.contractAddress">
                         <i class="fab fa-ethereum me-1"></i>
-                        {{ truncateAddress(election.contract_address) }}
-                      </a>
+                        {{ truncateAddress(election.contractAddress) }}
                     </span>
                     <span v-else class="text-muted">
                       <i class="fas fa-times-circle me-1"></i>
@@ -223,20 +221,6 @@ export default {
       }
       return classes[status] || 'bg-secondary'
     },
-    getEtherscanLink(address) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#' || !address) return '#'
-      
-      return `${baseUrl}/address/${address}`
-    },
     showCreateForm() {
       this.selectedElection = null
       this.showForm = true
@@ -249,19 +233,50 @@ export default {
       this.showForm = false
       this.selectedElection = null
     },
+
     async handleCreateElection(electionData) {
       try {
-        await this.createElection(electionData)
-        this.hideForm()
+        // console.log('Received election data - electionData:', electionData);
+
+        // Validate and format dates
+        if (!electionData.startTime) throw new Error('Start time is required');
+        if (!electionData.endTime) throw new Error('End time is required');
+
+        const startTime = new Date(electionData.startTime);
+        const endTime = new Date(electionData.endTime);
+
+        if (isNaN(startTime.getTime())) throw new Error('Invalid start time');
+        if (isNaN(endTime.getTime())) throw new Error('Invalid end time');
+        if (endTime <= startTime) throw new Error('End time must be after start time');
+
+        // Construct formatted data
+        const formattedData = {
+          title: electionData.title?.trim(),
+          description: electionData.description?.trim(),
+          start_time: Math.floor(startTime.getTime() / 1000),
+          end_time: Math.floor(endTime.getTime() / 1000),
+          positions: electionData.positions,
+          status: 'Init',
+          address: electionData.address || null
+        };
+
+        // console.log('formatted data being sent to vuex - formattedData: ', formattedData);
+
+        // Call the Vuex action to create the election
+        await this.createElection(formattedData);
+        this.hideForm();
       } catch (error) {
-        console.error('Error creating election:', error)
+        console.error('Error creating election:', error);
+        alert(error.message || 'An error occurred while creating the election.');
       }
     },
     async handleUpdateElection({ id, data }) {
       try {
+        // console.log("election id: ", id)
+        // console.log("updates: ", data)
         await this.updateElection({ id, data })
         this.hideForm()
-      } catch (error) {
+      } catch (error) { //NOTE: fixed update election but No more adding new positions during update election. Cause: issues related to backend mode setup.
         console.error('Error updating election:', error)
       }
     },
@@ -275,8 +290,12 @@ export default {
     },
     async confirmPhaseChange() {
       if (!this.selectedElection || !this.newPhase || this.phaseChangeProcessing) return
+
+      // console.log('Selected election:', this.selectedElection);
+      // console.log('New phase:', this.newPhase);
       
       this.phaseChangeProcessing = true
+      // console.log(this.selectedElection.electionId || "no id")
       
       try {
         await this.updateElectionPhase({
@@ -317,7 +336,7 @@ export default {
   text-decoration: none;
 }
 
-.contract-link:hover {
+contract-link:hover {
   text-decoration: underline;
 }
 

@@ -45,7 +45,7 @@
               <div class="meta-item" v-if="election.contract_address">
                 <i class="fab fa-ethereum me-2"></i>
                 <strong>Contract:</strong> 
-                <a :href="getEtherscanLink(election.contract_address)" target="_blank" class="contract-link">
+                <a href="#" target="_blank" class="contract-link">
                   {{ truncatedContractAddress }}
                 </a>
               </div>
@@ -155,20 +155,6 @@ export default {
     formatDateTime(dateTimeStr) {
       const date = new Date(dateTimeStr)
       return date.toLocaleString()
-    },
-    getEtherscanLink(address) {
-      const networkUrls = {
-        1: 'https://etherscan.io',
-        3: 'https://ropsten.etherscan.io',
-        4: 'https://rinkeby.etherscan.io',
-        5: 'https://goerli.etherscan.io',
-        42: 'https://kovan.etherscan.io'
-      }
-      
-      const baseUrl = networkUrls[this.networkId] || '#'
-      if (baseUrl === '#' || !address) return '#'
-      
-      return `${baseUrl}/address/${address}`
     },
     getResultsForPosition(positionId) {
       return this.resultsData[positionId] || []
