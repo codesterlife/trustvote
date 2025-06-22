@@ -1,6 +1,7 @@
 import Web3 from 'web3'
 import ElectionFactoryABI from '../contracts/ElectionFactory.json'
 import ElectionABI from '../contracts/Election.json'
+import WalletConnectProvider from '@walletconnect/web3-provider'
 
 // Contract addresses (to be set during deployment)
 const ELECTION_FACTORY_ADDRESS = process.env.VUE_APP_ELECTION_FACTORY_ADDRESS
@@ -57,34 +58,54 @@ const web3Service = {
   /**
    * Connect to MetaMask with user interaction
    */
-  async connectWallet() {
-    if (!window.ethereum) {
-      throw new Error('MetaMask not detected. Please install MetaMask to use this application.')
-    }
+  // async connectWallet() {
+  //   if (!window.ethereum) {
+  //     throw new Error('MetaMask not detected. Please install MetaMask to use this application.')
+  //   }
     
-    try {
-      const web3 = new Web3(window.ethereum)
+  //   try {
+  //     const web3 = new Web3(window.ethereum)
       
-      // Request account access
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      })
+  //     // Request account access
+  //     const accounts = await window.ethereum.request({
+  //       method: 'eth_requestAccounts'
+  //     })
       
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts found. Please unlock your MetaMask wallet.')
-      }
+  //     if (!accounts || accounts.length === 0) {
+  //       throw new Error('No accounts found. Please unlock your MetaMask wallet.')
+  //     }
       
-      const networkId = await web3.eth.net.getId()
+  //     const networkId = await web3.eth.net.getId()
       
-      return {
-        web3,
-        address: accounts[0],
-        networkId
-      }
-    } catch (error) {
-      console.error('Error connecting to wallet:', error)
-      throw error
-    }
+  //     return {
+  //       web3,
+  //       address: accounts[0],
+  //       networkId
+  //     }
+  //   } catch (error) {
+  //     console.error('Error connecting to wallet:', error)
+  //     throw error
+  //   }
+  // },
+
+  async connectWallet() {
+    // 1. Create WalletConnect Provider
+    const provider = new WalletConnectProvider({
+      rpc: {
+        5777: "192.168.1.7:7545", // Replace with your network
+      },
+      chainId: 5777,
+    });
+
+    // 2. Enable session (triggers QR Code modal)
+    await provider.enable();
+
+    // 3. Create Web3 instance
+    const web3 = new Web3(provider);
+
+    // 4. Now you can use web3 as usual
+    const accounts = await web3.eth.getAccounts();
+    console.log(accounts);
   },
   
   /**

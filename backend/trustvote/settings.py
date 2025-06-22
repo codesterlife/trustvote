@@ -14,7 +14,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-d2kk73p6r3#4y$uk#0@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '0.0.0.0', '127.0.0.1', '*']
+ALLOWED_HOSTS = ['localhost', '0.0.0.0', '127.0.0.1', '*', '197.168.1.7']
 
 # Application definition
 INSTALLED_APPS = [
@@ -120,7 +120,8 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = False  # In development, allow all origins
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Frontend development server
+    "http://localhost:3000",
+    "http://197.168.1.7:3000",  # Frontend development server
     "http://0.0.0.0:5000",  # Backend server
 ]
 CORS_ALLOW_METHODS = [

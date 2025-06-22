@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TrustVote</string>
+    <string name="title_activity_main">TrustVote</string>
+    <string name="package_name">com.trustvote.app</string>
+    <string name="custom_url_scheme">com.trustvote.app</string>
+</resources>
